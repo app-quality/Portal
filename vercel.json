@@ -1,8 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/",
-      "destination": "https://script.google.com/macros/s/AKfycbwRW6ygMyYDjQS8IMOfe3li5Hy4fkPndCmEdCpV8dUjNLAxXwULE_vMxcfSxh8xry2t/exec"
-    }
-  ]
-}
