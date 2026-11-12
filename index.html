@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACJ Quality Portal</title>
+
+  <!-- META TAG UNTUK PRATINJAU LINK WHATSAPP & MEDIA SOSIAL -->
+  <meta name="description" content="Sistem manajemen kualitas terpadu untuk Claim Customer, Database NG, dan Inspection.">
+  <meta property="og:title" content="ACJ Quality Portal">
+  <meta property="og:description" content="Sistem manajemen kualitas terpadu untuk Claim Customer, Database NG, dan Inspection.">
+  <meta property="og:type" content="website">
+
+  <style>
+    :root {
+      --primary: #1e40af;
+      --primary-hover: #1d4ed8;
+      --whatsapp: #16a34a;
+      --whatsapp-hover: #15803d;
+      --bg-color: #f1f5f9;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border: #cbd5e1;
+      --danger: #dc2626;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Halaman Login */
+    .login-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+
+    .login-card {
+      background: var(--card-bg);
+      padding: 2.5rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    .login-card h1 {
+      font-size: 1.5rem;
+      color: var(--primary);
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.5px;
+    }
+
+    .login-card p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .form-group {
+      text-align: left;
+      margin-bottom: 1rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 0.7rem 1.2rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-whatsapp {
+      background: var(--whatsapp);
+      color: white;
+    }
+
+    .btn-whatsapp:hover {
+      background: var(--whatsapp-hover);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+    }
+
+    .btn-outline:hover {
+      background: #e2e8f0;
+    }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    /* Dashboard Utama */
+    .navbar {
+      background: var(--card-bg);
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .nav-title h1 {
+      font-size: 1.25rem;
+      color: var(--primary);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .sync-badge {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: #e2e8f0;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .grid-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      padding: 1.5rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .card h3 {
+      margin-bottom: 0.5rem;
+      font-size: 1.1rem;
+    }
+
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    /* Modal Print Preview */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      z-index: 50;
+    }
+
+    .modal-box {
+      background: var(--card-bg);
+      width: 100%;
+      max-width: 700px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .modal-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+      background: #e2e8f0;
+      display: flex;
+      justify-content: center;
+    }
+
+    .paper-preview {
+      background: white;
+      padding: 2rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      transition: all 0.3s ease;
+    }
+
+    .paper-portrait {
+      width: 320px;
+      min-height: 440px;
+    }
+
+    .paper-landscape {
+      width: 520px;
+      min-height: 340px;
+    }
+
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printableArea, #printableArea * {
+        visibility: visible;
+      }
+      #printableArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- BAGIAN 1: LOGIN PORTAL -->
+  <section id="loginSection" class="login-wrapper">
+    <div class="login-card">
+      <h1>ACJ QUALITY PORTAL</h1>
+      <p>Claim Customer, Database NG &amp; Inspection</p>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" placeholder="Masukkan username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Masukkan password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Masuk Sistem</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- BAGIAN 2: DASHBOARD SYSTEM -->
+  <section id="dashboardSection" class="hidden">
+    <header class="navbar">
+      <div class="nav-title">
+        <h1>ACJ Quality System</h1>
+      </div>
+      <div class="nav-actions">
+        <span id="syncStatus" class="sync-badge">Sync: --</span>
+        <button id="shareWaBtn" class="btn btn-whatsapp">Share ke WhatsApp</button>
+        <button id="openPrintBtn" class="btn btn-outline">Laporan Eksekutif PDF</button>
+        <button id="logoutBtn" class="btn btn-danger">Logout</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="grid-cards">
+        <div class="card">
+          <h3>Claim Customer</h3>
+          <p>Kelola data keluhan pelanggan dan tindak lanjut kualitas produk.</p>
+        </div>
+        <div class="card">
+          <h3>Database NG</h3>
+          <p>Catatan produk Not Good (NG) dan analisis penyebab cacat produksi.</p>
+        </div>
+        <div class="card">
+          <h3>Inspection</h3>
+          <p>Hasil inspeksi harian dan validasi standar mutu produk.</p>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- BAGIAN 3: MODAL PRINT PREVIEW -->
+  <div id="printModal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Print Preview</h3>
+        <div class="modal-controls">
+          <button id="landscapeBtn" class="btn btn-outline">Landscape</button>
+          <button id="portraitBtn" class="btn btn-outline">Portrait</button>
+          <button id="printActionBtn" class="btn btn-primary" style="margin-top:0; width:auto;">Cetak</button>
+          <button id="closeModalBtn" class="btn btn-outline" aria-label="Tutup">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div id="printableArea" class="paper-preview paper-portrait">
+          <h4>Laporan Eksekutif - ACJ Quality System</h4>
+          <p style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;">
+            Ringkasan Claim Customer, Database NG &amp; Inspection.
+          </p>
+          <hr style="margin: 1rem 0; border: 0; border-top: 1px solid #cbd5e1;">
+          <p style="font-size: 0.85rem;">Status: Siap dicetak atau disimpan sebagai PDF.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const loginSection = document.getElementById('loginSection');
+    const dashboardSection = document.getElementById('dashboardSection');
+    const loginForm = document.getElementById('loginForm');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const syncStatus = document.getElementById('syncStatus');
+    const shareWaBtn = document.getElementById('shareWaBtn');
+
+    const printModal = document.getElementById('printModal');
+    const openPrintBtn = document.getElementById('openPrintBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const landscapeBtn = document.getElementById('landscapeBtn');
+    const portraitBtn = document.getElementById('portraitBtn');
+    const printActionBtn = document.getElementById('printActionBtn');
+    const printableArea = document.getElementById('printableArea');
+
+    // Simulasi Login
+    loginForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      loginSection.classList.add('hidden');
+      dashboardSection.classList.remove('hidden');
