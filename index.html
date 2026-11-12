@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACJ Quality Portal</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@0.383.0/dist/umd/lucide.min.js"></script>
+<style>
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+.tbl{content-visibility:auto;contain-intrinsic-size:400px;-webkit-overflow-scrolling:touch}
+@media print{#hdr,#toast,#pvModal,#modal{display:none!important}}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen">
+
+<div id="toast" class="fixed bottom-5 right-5 z-[70] translate-y-24 opacity-0 transition-all duration-300 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl text-sm font-medium pointer-events-none max-w-sm"></div>
+
+<!-- LOGIN -->
+<div id="login" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900">
+  <form id="loginForm" class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 space-y-4">
+    <div class="text-center mb-2">
+      <div class="inline-flex p-3 rounded-2xl bg-indigo-600 text-white mb-3"><i data-lucide="shield-check" class="w-8 h-8"></i></div>
+      <h1 class="text-2xl font-black">ACJ QUALITY PORTAL</h1>
+      <p class="text-xs uppercase tracking-widest font-semibold text-indigo-600 mt-1">Claim Customer, Database NG & Inspection</p>
+    </div>
+    <div><label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Username</label>
+      <input id="lu" required autocomplete="username" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></div>
+    <div><label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Password</label>
+      <input id="lp" type="password" required autocomplete="current-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></div>
+    <button id="lb" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl">Masuk Sistem</button>
+  </form>
+</div>
+
+<!-- HEADER -->
+<header id="hdr" class="hidden bg-white sticky top-0 z-40 border-b border-slate-200 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 flex items-center justify-between h-16 gap-2">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="p-2 rounded-xl bg-indigo-600 text-white"><i data-lucide="layers" class="w-5 h-5"></i></div>
+      <div class="min-w-0"><h1 class="font-bold text-base leading-tight">ACJ Quality System</h1>
+        <div class="flex items-center gap-2"><span id="role" class="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase truncate"></span>
+        <span id="sync" class="text-[11px] text-slate-400">Sync: --</span></div></div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button data-act="exec" class="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="file-check-2" class="w-4 h-4 text-emerald-400"></i><span class="hidden sm:inline">Laporan Eksekutif PDF</span></button>
+      <button data-act="sync" title="Sinkronkan" class="p-2 rounded-lg border border-slate-200 hover:bg-slate-50"><i data-lucide="refresh-cw" id="syncIcon" class="w-4 h-4"></i></button>
+      <button data-act="logout" class="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg"><i data-lucide="log-out" class="w-4 h-4"></i><span class="hidden sm:inline">Logout</span></button>
+    </div>
+  </div>
+  <nav class="max-w-7xl mx-auto px-4 pb-2 flex gap-1 overflow-x-auto" id="tabs"></nav>
+</header>
+
+<main id="app" class="hidden max-w-7xl mx-auto p-4 sm:p-6 space-y-6 pb-16"></main>
+<div id="modal" class="fixed inset-0 z-[60] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto p-4"></div>
+<datalist id="dlCust"></datalist>
+<div id="pvModal" class="fixed inset-0 z-[65] hidden bg-slate-900/70 backdrop-blur-sm p-3 sm:p-6">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl mx-auto h-full flex flex-col overflow-hidden">
+    <div class="px-4 py-3 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2">
+      <h3 id="pvTitle" class="font-bold text-sm">Print Preview</h3>
+      <div class="flex items-center gap-2">
+        <select id="pvOrient" class="text-xs bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
+        <button data-act="pvprint" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs font-semibold flex items-center gap-1.5"><i data-lucide="printer" class="w-4 h-4"></i>Cetak</button>
+        <button data-act="pvclose" aria-label="Tutup" class="px-2 text-slate-300 hover:text-white">✕</button>
+      </div>
+    </div>
+    <iframe id="pvFrame" title="Print Preview" class="flex-1 w-full bg-slate-200"></iframe>
+  </div>
+</div>
+
+<script>
+/* ================= UTIL ================= */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => Number(v) || 0;
+const fmt = n => num(n).toLocaleString('id-ID');
+const today = () => new Date().toLocaleDateString('sv-SE');
+const add90 = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d+90).toLocaleDateString('sv-SE'); };
+const pd = s => { if (!/^\d{4}-\d{2}-\d{2}/.test(s || '')) return null; const d = new Date(s.slice(0,10) + 'T00:00:00'); return isNaN(d) ? null : d; };
+const weekOf = d => Math.ceil((d.getDate() + ((new Date(d.getFullYear(), d.getMonth(), 1).getDay() + 6) % 7)) / 7);
+const icons = () => { try { lucide.createIcons(); } catch (e) {} };
+const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const MS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const DIVISI = ['Bor','CNC','Cutting','Harden','Hexagon','Punch','Rolling','Turret'];
+const PLANTS = ['Sangiang','Cikarang','Kalisabi','Jatake'];
+const PIE_COL = ['#ef4444','#f97316','#f59e0b','#3b82f6','#8b5cf6','#94a3b8'];
+let toastT;
+function toast(msg, type) {
+  const t = $('toast'); t.textContent = msg;
+  t.className = 'fixed bottom-5 right-5 z-[70] transition-all duration-300 text-white px-5 py-3 rounded-xl shadow-2xl text-sm font-medium max-w-sm pointer-events-none ' + (type === 'error' ? 'bg-rose-700' : type === 'success' ? 'bg-emerald-700' : 'bg-slate-900');
+  clearTimeout(toastT); toastT = setTimeout(() => t.className += ' translate-y-24 opacity-0', 3200);
+}
+
+/* ================= STATE & CONFIG ================= */
+let S = { token: null, user: null, tab: 'claim' };
+const D = { claim: [], ng: [], insp: [] };
+const drill = {}, pg = { claim: 1, ng: 1, insp: 1 }, charts = {}, PAGE = 15;
+let editing = null, timer = null;
+
+// kolom: [header, key, tipe (n=jumlah, p=persen, b=berkas), tampil di tabel]
+const MOD = {
+  claim: { title: 'Claim Customer', sheet: 'Claim_Customer', idk: 'idRegister', dk: 'tanggalClaim', color: 'indigo', icon: 'alert-octagon',
+    search: ['namaCustomer','namaPart','partNomor','noClaim','idRegister','keteranganJenisNG','acjPlant'],
+    cols: [['ID Register','idRegister'],['Tgl Claim','tanggalClaim'],['Plant','acjPlant'],['Kategori','kategoriClaim'],['Customer','namaCustomer'],['No Claim','noClaim'],['Nama Part','namaPart'],['Part No','partNomor'],['Jenis NG','keteranganJenisNG'],['Kategori NG','kategoriNG'],['Frekuensi Claim','frekuensiClaim'],['Qty Check','qtyCheck','n'],['Qty NG','qtyNG','n'],['% Defect','prosentase','p'],['Penyebab Problem','penyebabProblem'],['Lokasi Penemuan','lokasiPenemuan'],['Finish Monitoring','finishMonitoring'],['Status','statusClaim'],['Official Doc','officialDoc','b'],['PICA','pica','b']] },
+  ng: { title: 'Database NG Internal', sheet: 'Database_NG', idk: 'idNG', dk: 'tanggal', color: 'blue', icon: 'cpu',
+    search: ['namaPart','jenisNG','faktorPenyebab','divisi','noMesin','namaOperator','idNG'],
+    cols: [['ID NG','idNG'],['Tanggal','tanggal'],['Nama Part','namaPart'],['Qty NG','qtyNG','n'],['Jenis Defect','jenisNG'],['Faktor Penyebab','faktorPenyebab'],['Divisi','divisi'],['No Mesin','noMesin'],['Operator','namaOperator']] },
+  insp: { title: 'Data Inspection', sheet: 'Data_Inspection', idk: 'uid', dk: 'tanggal', color: 'emerald', icon: 'check-square',
+    search: ['namaPart','customer','proses','operator','keterangan','no'],
+    cols: [['No','no'],['Tanggal','tanggal'],['Nama Part','namaPart'],['Customer','customer'],['Proses','proses'],['Qty OK','qtyOK','n'],['Qty NG','qtyNG','n'],['Qty Repair','qtyRepair','n'],['Total Check','totalCheck','n'],['Operator','operator'],['Keterangan','keterangan']] }
+};
+const CH = {
+  claim: [['pareto','Pareto Kategori NG (80/20)','Klik batang untuk filter log',4],['dist','','',2],['cust','Top 5 Customer','Jumlah kasus (klik untuk filter)',2],['trend','Tren Kasus & Qty NG','Bulanan',2],['plant','Claim per Plant','Klik irisan untuk filter',2],['part','Jumlah Claim per Nama Part','10 part dengan kasus terbanyak, dipisah kategori Claim & Informasi (klik batang untuk filter log)',6]],
+  ng: [['pareto','Pareto Jumlah NG per Part','80/20, klik batang untuk filter',3],['pie','Top 5 Part NG Tertinggi','Proporsi 5 part kritis',3],['trend','Tren NG Satu Tahun','Per bulan & divisi (klik bulan untuk filter)',3],['multi','Pareto Multi-Dimensi','Klik batang untuk filter log',3]],
+  insp: [['pareto','Pareto NG Tertinggi (80/20)','Part dengan Qty NG terbanyak',3],['pie','Top 5 Part NG Tertinggi','Proporsi defect 5 part teratas',3]]
+};
+const F = {
+  claim: [
+    {k:'idRegister',l:'ID Register (otomatis)',t:'text',ro:1},{k:'tanggalClaim',l:'Tanggal Claim',t:'date',req:1},
+    {k:'acjPlant',l:'ACJ Plant',t:'sel',o:PLANTS},{k:'namaCustomer',l:'Nama Customer',t:'text',req:1,list:'dlCust'},
+    {k:'noClaim',l:'No. Claim Customer',t:'text'},{k:'kategoriClaim',l:'Kategori Claim',t:'sel',o:['Claim','Informasi']},
+    {k:'lokasiPenemuan',l:'Lokasi Penemuan',t:'sel',o:['Receiving Inspection','In-Process','Customer']},{k:'frekuensiClaim',l:'Frekuensi Claim',t:'sel',o:['Pertama kali','Berulang / rutin']},
+    {k:'namaPart',l:'Nama Part',t:'text',req:1},{k:'partNomor',l:'Part Nomor',t:'text'},
+    {k:'keteranganJenisNG',l:'Keterangan Jenis NG',t:'text',req:1,w:1},
+    {k:'qtyCheck',l:'Qty Check',t:'number',min:0,def:100},{k:'qtyNG',l:'Qty NG',t:'number',min:0,def:1},
+    {k:'prosentase',l:'Prosentase (%)',t:'text',ro:1},{k:'finishMonitoring',l:'Finish Monitoring (+90 hari)',t:'text',ro:1},
+    {k:'kategoriNG',l:'Kategori NG',t:'sel',o:['Dimensi','Visual']},{k:'penyebabProblem',l:'Penyebab Problem',t:'sel',o:['Internal','External']},
+    {k:'statusClaim',l:'Status Claim',t:'sel',o:['Monitoring','Closed']},
+    {k:'officialDoc',l:'Lampiran Official Doc (PDF/JPG/PNG, maks 4 MB)',t:'file'},{k:'pica',l:'Lampiran PICA (PDF/JPG/PNG, maks 4 MB)',t:'file'}],
+  ng: [
+    {k:'idNG',l:'ID NG (otomatis)',t:'text',ro:1},{k:'tanggal',l:'Tanggal',t:'date',req:1},
+    {k:'namaPart',l:'Nama Part',t:'text',req:1},{k:'qtyNG',l:'Qty NG (Pcs)',t:'number',min:0,req:1,def:1},
+    {k:'jenisNG',l:'Jenis NG',t:'text',req:1},{k:'faktorPenyebab',l:'Faktor Penyebab',t:'text',req:1},
+    {k:'divisi',l:'Divisi',t:'sel',o:DIVISI},{k:'noMesin',l:'No. Mesin',t:'text'},{k:'namaOperator',l:'Nama Operator',t:'text'}],
+  insp: [
+    {k:'no',l:'No (kosongkan = otomatis)',t:'text'},{k:'tanggal',l:'Tanggal',t:'date',req:1},
+    {k:'namaPart',l:'Nama Part',t:'text',req:1},{k:'customer',l:'Customer',t:'text',req:1,list:'dlCust'},
+    {k:'proses',l:'Proses',t:'text',req:1},{k:'operator',l:'Operator',t:'text',req:1},
+    {k:'qtyOK',l:'Qty OK',t:'number',min:0,req:1,def:0},{k:'qtyNG',l:'Qty NG',t:'number',min:0,req:1,def:0},
+    {k:'qtyRepair',l:'Qty Repair',t:'number',min:0,req:1,def:0},{k:'totalCheck',l:'Total Check (otomatis)',t:'text',ro:1},
+    {k:'keterangan',l:'Keterangan',t:'text',w:1}]
+};
+
+/* ================= API ================= */
+// >>> GANTI dengan URL Web App Apps Script Anda (hasil Deploy, berakhiran /exec) <<<
+const API_URL = 'https://script.google.com/macros/s/AKfycbzM1pQqPv8Uv5hsmwkGN_x39vgKD3xu-WSv0VYhLfIWYjMHTmpQth3mmF87oDxMfct94w/exec';
+
+function call(fn, ...args) {
+  if (/GANTI_DENGAN/.test(API_URL)) return Promise.reject(new Error('API_URL di index.html belum diisi dengan URL Web App Apps Script.'));
+  const payload = { fn, args: fn === 'apiLogin' ? args : [S.token, ...args] };
+  // text/plain agar tidak memicu CORS preflight (Apps Script tidak mendukung OPTIONS)
+  return fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' })
+    .then(res => { if (!res.ok) throw new Error('Server error ' + res.status); return res.json(); })
+    .then(r => {
+      if (r && r.success === false && /Sesi/.test(r.message || '')) doLogout(true);
+      return r;
+    });
+}
+
+/* ================= SHELL ================= */
+function kpi(label, val, sub, color, dr) {
+  // dr = [modul, field, value] -> kartu bisa diklik untuk memfilter log register; dr = [modul] -> hapus filter
+  let at = '', cls = '';
+  if (dr) {
+    const on = dr[1] ? drill[dr[0]] && drill[dr[0]].field === dr[1] && drill[dr[0]].value === dr[2] : !drill[dr[0]];
+    at = `data-act="kpi" data-m="${dr[0]}" data-field="${esc(dr[1] || '')}" data-value="${esc(dr[2] || '')}" role="button" tabindex="0" title="Klik untuk menampilkan di log register"`;
+    cls = 'cursor-pointer transition hover:shadow-md hover:-translate-y-0.5 ' + (on && dr[1] ? `ring-2 ring-${color}-400` : '');
+  }
+  return `<div ${at} class="${cls} bg-white p-4 rounded-2xl border border-slate-200 shadow-sm"><p class="text-[11px] font-semibold uppercase text-${color}-600">${label}</p><h3 class="text-2xl font-black text-${color}-700 mt-1 truncate">${val}</h3><span class="text-[11px] text-slate-400">${sub}</span></div>`;
+}
+function sel(m, k, label, opts) {
+  return `<select id="f-${m}-${k}" data-m="${m}" class="flt text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 max-w-[200px]"><option value="ALL">${label}</option>${opts.map(([v,t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join('')}</select>`;
+}
+function shell(m) {
+  const c = MOD[m], col = c.color;
+  let fl = sel(m, 'year', 'Semua Tahun', []);
+  if (m === 'claim') fl += sel(m, 'customer', 'Semua Customer', []) + sel(m, 'plant', 'Semua Plant', PLANTS.map(x => [x, x])) + sel(m, 'kategori', 'Semua Kategori', [['Claim','Claim'],['Informasi','Informasi']]);
+  else {
+    fl += sel(m, 'month', 'Semua Bulan', MONTHS.map((x, i) => [i + 1, x])) + sel(m, 'week', 'Semua Minggu', [1,2,3,4,5].map(x => [x, 'Minggu ' + x]));
+    if (m === 'insp') fl += sel(m, 'customer', 'Semua Customer', []);
+    if (m === 'ng') fl += sel(m, 'divisi', 'Semua Divisi', DIVISI.map(x => [x, x]));
+  }
+  const cards = CH[m].map(([k, t, s, sp]) => {
+    if (k === 'dist') return `<div class="lg:col-span-${sp} bg-white p-4 rounded-2xl border border-slate-200 shadow-sm"><h4 class="font-bold text-sm">Tabel Distribusi Pareto</h4><p class="text-xs text-slate-500 mb-2">Kontribusi kategori terhadap total defect</p><table class="w-full text-xs"><thead><tr class="text-slate-400 uppercase border-b"><th class="py-1 text-left">Kategori</th><th class="text-right">Qty</th><th class="text-right">%</th><th class="text-right">Kum.</th></tr></thead><tbody id="dist"></tbody></table></div>`;
+    const extra = k === 'multi' ? `<select id="dim" data-m="ng" class="flt text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-2 py-1"><option value="namaPart">By Part NG</option><option value="jenisNG">By Jenis Problem</option><option value="namaOperator">By Operator</option><option value="noMesin">By No Mesin</option></select>` : '';
+    return `<div class="lg:col-span-${sp} bg-white p-4 rounded-2xl border border-slate-200 shadow-sm"><div class="flex justify-between items-start gap-2 mb-2"><div><h4 class="font-bold text-sm">${t}</h4><p class="text-xs text-slate-500">${s}</p></div>${extra}</div><div class="relative h-64"><canvas id="c-${m}-${k}"></canvas></div></div>`;
+  }).join('');
+  const th = '<th class="py-3 px-3">Aksi</th>' + c.cols.filter(x => x[3] !== 0).map(x => `<th class="py-3 px-3 ${x[2]==='n'||x[2]==='p'?'text-right':''}">${x[0]}</th>`).join('');
+  return `
+  <div class="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+    <div><h2 class="text-xl font-extrabold">${c.title}</h2><p class="text-xs text-slate-500">Dashboard, analisis Pareto & log register</p></div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button data-act="add" data-m="${m}" class="adm hidden px-4 py-2.5 bg-${col}-600 hover:bg-${col}-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2"><i data-lucide="plus-circle" class="w-4 h-4"></i>Input Baru</button>
+      <button data-act="exp" data-m="${m}" data-f="excel" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="sheet" class="w-4 h-4 text-emerald-600"></i>Excel</button>
+      <button data-act="exp" data-m="${m}" data-f="pdf" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="file-text" class="w-4 h-4 text-rose-600"></i>PDF</button>
+      <button data-act="preview" data-m="${m}" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="eye" class="w-4 h-4 text-sky-600"></i>Print Preview</button>
+      <button data-act="print" data-m="${m}" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="printer" class="w-4 h-4 text-slate-700"></i>Print</button>
+    </div></div>
+  <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-3">
+    <span class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1.5"><i data-lucide="filter" class="w-4 h-4 text-${col}-600"></i>Filter:</span>${fl}
+    <button data-act="reset" data-m="${m}" class="text-xs text-slate-500 hover:text-slate-800 underline ml-auto">Reset Filter</button></div>
+  <div id="kpi-${m}" class="grid grid-cols-2 ${m === 'claim' ? 'lg:grid-cols-6' : 'lg:grid-cols-4'} gap-4"></div>
+  <div class="grid grid-cols-1 lg:grid-cols-6 gap-4">${cards}</div>
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="flex items-center gap-2"><h3 class="font-bold">Log Register ${c.title}</h3>
+        <span id="drill-${m}" class="hidden text-[10px] font-bold px-2.5 py-1 rounded-full bg-rose-100 text-rose-700"></span></div>
+      <input id="q-${m}" data-m="${m}" placeholder="Cari..." class="srch w-full sm:w-72 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-${col}-500"></div>
+    <div class="overflow-x-auto tbl"><table class="w-full text-left text-xs"><thead class="bg-slate-50 text-slate-500 font-semibold uppercase border-b"><tr>${th}</tr></thead><tbody id="tb-${m}" class="divide-y divide-slate-100"></tbody></table></div>
+    <div id="empty-${m}" class="hidden p-8 text-center text-xs text-slate-400">Tidak ada data yang cocok.</div>
+    <div class="p-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500"><span id="info-${m}"></span>
+      <div class="flex items-center gap-2"><button data-act="pg" data-m="${m}" data-d="-1" class="px-2.5 py-1.5 border rounded-lg hover:bg-slate-50 disabled:opacity-40">Prev</button><span id="pn-${m}" class="font-bold px-1"></span><button data-act="pg" data-m="${m}" data-d="1" class="px-2.5 py-1.5 border rounded-lg hover:bg-slate-50 disabled:opacity-40">Next</button></div></div>
+  </div>`;
+}
+function buildApp() {
+  $('app').innerHTML = Object.keys(MOD).map(m => `<section id="v-${m}" class="${m === 'claim' ? '' : 'hidden'} space-y-5">${shell(m)}</section>`).join('');
+  $('tabs').innerHTML = Object.keys(MOD).map(m => `<button data-act="tab" data-m="${m}" id="tab-${m}" class="px-4 py-2 rounded-lg text-sm whitespace-nowrap flex items-center gap-2"><i data-lucide="${MOD[m].icon}" class="w-4 h-4"></i>${MOD[m].title}</button>`).join('');
+  icons();
+}
+function setTab(m) {
+  S.tab = m;
+  Object.keys(MOD).forEach(k => {
+    $('v-' + k).classList.toggle('hidden', k !== m);
+    $('tab-' + k).className = 'px-4 py-2 rounded-lg text-sm whitespace-nowrap flex items-center gap-2 ' + (k === m ? `font-semibold bg-${MOD[k].color}-50 text-${MOD[k].color}-700` : 'font-medium text-slate-500 hover:bg-slate-100');
+  });
+  render(m);
+}
+
+/* ================= FILTER ================= */
+const fv = (m, k) => { const e = $(`f-${m}-${k}`); return e ? e.value : 'ALL'; };
+function filtered(m, tbl) {
+  const c = MOD[m], y = fv(m,'year'), mo = fv(m,'month'), w = fv(m,'week'), dv = fv(m,'divisi'), cu = fv(m,'customer'), pl = fv(m,'plant'), kt = fv(m,'kategori');
+  const q = ($('q-' + m).value || '').toLowerCase().trim(), dr = tbl && drill[m];
+  return D[m].filter(r => {
+    const d = pd(r[c.dk]);
+    if ((y !== 'ALL' || mo !== 'ALL' || w !== 'ALL') && !d) return false;
+    if (y !== 'ALL' && d.getFullYear() != y) return false;
+    if (mo !== 'ALL' && d.getMonth() + 1 != mo) return false;
+    if (w !== 'ALL' && weekOf(d) != w) return false;
+    if (dv !== 'ALL' && r.divisi !== dv) return false;
+    if (cu !== 'ALL' && (r.namaCustomer !== undefined ? r.namaCustomer : r.customer) !== cu) return false;
+    if (pl !== 'ALL' && r.acjPlant !== pl) return false;
+    if (kt !== 'ALL' && (r.kategoriClaim || 'Claim') !== kt) return false;
+    if (q && !c.search.some(k => String(r[k] || '').toLowerCase().includes(q))) return false;
+    if (dr && r[dr.field] !== dr.value) return false;
+    return true;
+  });
+}
+function setDrill(m, field, value) {
+  drill[m] = { field, value }; pg[m] = 1; badge(m); table(m);
+  $('tb-' + m).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function badge(m) {
+  const b = $('drill-' + m), d = drill[m];
+  b.classList.toggle('hidden', !d);
+  if (d) b.innerHTML = `${esc(({ kategoriClaim: 'Kategori', statusClaim: 'Status', namaCustomer: 'Customer', customer: 'Customer', acjPlant: 'Plant', kategoriNG: 'Kategori NG', namaPart: 'Nama Part', jenisNG: 'Jenis NG', namaOperator: 'Operator', noMesin: 'Mesin' })[d.field] || d.field)}: ${esc(d.value)} <button data-act="cdrill" data-m="${m}" class="font-black ml-1">✕</button>`;
+}
+function popYears() {
+  const ys = new Set([new Date().getFullYear()]);
+  Object.keys(MOD).forEach(m => D[m].forEach(r => { const d = pd(r[MOD[m].dk]); if (d) ys.add(d.getFullYear()); }));
+  const arr = [...ys].sort((a, b) => b - a);
+  Object.keys(MOD).forEach(m => {
+    const s = $(`f-${m}-year`), cur = s.value;
+    s.innerHTML = '<option value="ALL">Semua Tahun</option>' + arr.map(y => `<option value="${y}">${y}</option>`).join('');
+    s.value = arr.map(String).includes(cur) ? cur : 'ALL';
+  });
+}
+function popCustomers(list) {
+  $('dlCust').innerHTML = list.map(c => `<option value="${esc(c)}">`).join('');
+  const s = $('f-claim-customer'), cur = s.value, u = [...new Set(D.claim.map(c => c.namaCustomer).filter(Boolean))].sort();
+  s.innerHTML = '<option value="ALL">Semua Customer</option>' + u.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  s.value = u.includes(cur) ? cur : 'ALL';
+  const si = $('f-insp-customer');
+  if (si) {
+    const ci = si.value, ui = [...new Set(D.insp.map(i => i.customer).filter(Boolean))].sort();
+    si.innerHTML = '<option value="ALL">Semua Customer</option>' + ui.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+    si.value = ui.includes(ci) ? ci : 'ALL';
+  }
+}
+
+/* ================= CHART FACTORIES ================= */
+const bo = x => Object.assign({ responsive: true, maintainAspectRatio: false, animation: false }, x);
+const leg = { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } };
+function mk(key, cfg) {
+  const el = $('c-' + key); if (!el) return;
+  if (charts[key]) charts[key].destroy();
+  charts[key] = new Chart(el, cfg);
+}
+function sum(d, kf, vf) { const o = {}; d.forEach(r => { const k = kf(r); o[k] = (o[k] || 0) + vf(r); }); return o; }
+function cfgPareto(map, limit, bar, line, unit, pick) {
+  const keys = Object.keys(map).sort((a, b) => map[b] - map[a]).slice(0, limit), vals = keys.map(k => map[k]);
+  const tot = vals.reduce((a, b) => a + b, 0); let run = 0;
+  const cum = vals.map(v => { run += v; return tot ? +(run / tot * 100).toFixed(1) : 0; });
+  return { keys, vals, cum, tot, cfg: { type: 'bar', data: { labels: keys.length ? keys : ['Tidak ada data'], datasets: [
+    { type: 'bar', label: unit, data: vals.length ? vals : [0], backgroundColor: bar, borderRadius: 5, yAxisID: 'y' },
+    { type: 'line', label: 'Kumulatif %', data: cum.length ? cum : [0], borderColor: line, borderWidth: 2, pointBackgroundColor: line, pointRadius: 3, yAxisID: 'y1' }] },
+    options: bo({ plugins: { legend: leg }, onClick: (e, els) => { if (pick && els.length) pick(keys[els[0].index]); },
+      scales: { y: { beginAtZero: true, title: { display: true, text: unit, font: { size: 10 } } }, y1: { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } } } }) } };
+}
+function cfgPie(map, pick) {
+  const ks = Object.keys(map).sort((a, b) => map[b] - map[a]), top = ks.slice(0, 5);
+  const labels = top.slice(), data = top.map(k => map[k]), rest = ks.slice(5).reduce((a, k) => a + map[k], 0);
+  if (rest > 0) { labels.push('Part Lainnya'); data.push(rest); }
+  const tot = data.reduce((a, b) => a + b, 0);
+  return { items: labels.map((l, i) => ({ label: l, qty: data[i], pct: tot ? (data[i] / tot * 100).toFixed(1) : '0.0', color: PIE_COL[i] })),
+    cfg: { type: 'pie', data: { labels: labels.length ? labels : ['Tidak ada data'], datasets: [{ data: data.length ? data : [1], backgroundColor: data.length ? PIE_COL.slice(0, labels.length) : ['#e2e8f0'], borderWidth: 2, borderColor: '#fff' }] },
+      options: bo({ plugins: { legend: leg, tooltip: { callbacks: { label: c => ` ${c.label}: ${fmt(c.raw)} pcs (${tot ? (c.raw / tot * 100).toFixed(1) : 0}%)` } } },
+        onClick: (e, els) => { if (pick && els.length && labels[els[0].index] !== 'Part Lainnya') pick(labels[els[0].index]); } }) } };
+}
+function cfgCust(d, pick) {
+  const map = sum(d, r => r.namaCustomer || 'Unknown', () => 1), keys = Object.keys(map).sort((a, b) => map[b] - map[a]).slice(0, 5);
+  return { type: 'bar', data: { labels: keys.length ? keys : ['Tidak ada data'], datasets: [{ label: 'Total Kasus', data: keys.length ? keys.map(k => map[k]) : [0], backgroundColor: '#06b6d4', borderRadius: 5 }] },
+    options: bo({ indexAxis: 'y', plugins: { legend: { display: false } }, onClick: (e, els) => { if (pick && els.length) pick(keys[els[0].index]); }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } } }) };
+}
+function cfgTrendClaim(d) {
+  const c = new Array(12).fill(0), q = new Array(12).fill(0);
+  d.forEach(r => { const x = pd(r.tanggalClaim); if (x) { c[x.getMonth()]++; q[x.getMonth()] += num(r.qtyNG); } });
+  return { type: 'line', data: { labels: MS, datasets: [
+    { label: 'Kasus Claim', data: c, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,.1)', fill: true, tension: .3, yAxisID: 'y' },
+    { label: 'Qty NG (Pcs)', data: q, borderColor: '#f59e0b', borderDash: [4, 4], tension: .3, yAxisID: 'y1' }] },
+    options: bo({ plugins: { legend: leg }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } } } }) };
+}
+function cfgPartClaim(d, pick) {
+  const tot = {}, cl = {}, inf = {};
+  d.forEach(r => { const p = r.namaPart || 'Tanpa Part'; tot[p] = (tot[p] || 0) + 1; if ((r.kategoriClaim || 'Claim') === 'Informasi') inf[p] = (inf[p] || 0) + 1; else cl[p] = (cl[p] || 0) + 1; });
+  const keys = Object.keys(tot).sort((a, b) => tot[b] - tot[a]).slice(0, 10);
+  return { type: 'bar', data: { labels: keys.length ? keys : ['Tidak ada data'], datasets: [
+    { label: 'Claim', data: keys.map(k => cl[k] || 0), backgroundColor: '#e11d48', borderRadius: 4, stack: 's' },
+    { label: 'Informasi', data: keys.map(k => inf[k] || 0), backgroundColor: '#0ea5e9', borderRadius: 4, stack: 's' }] },
+    options: bo({ plugins: { legend: leg, tooltip: { callbacks: { footer: it => 'Total: ' + it.reduce((a, x) => a + x.raw, 0) + ' kasus' } } },
+      onClick: (e, els) => { if (pick && els.length) pick(keys[els[0].index]); },
+      scales: { x: { stacked: true, ticks: { font: { size: 10 } } }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Jumlah Kasus', font: { size: 10 } } } } }) };
+}
+function cfgPlant(d, pick) {
+  const map = sum(d.filter(r => PLANTS.includes(r.acjPlant)), r => r.acjPlant, () => 1);
+  return { type: 'doughnut', data: { labels: PLANTS, datasets: [{ data: PLANTS.map(p => map[p] || 0), backgroundColor: ['#6366f1','#0ea5e9','#10b981','#f59e0b'] }] },
+    options: bo({ plugins: { legend: leg }, onClick: (e, els) => { if (pick && els.length) pick(PLANTS[els[0].index]); } }) };
+}
+function ngYear() {
+  const y = fv('ng', 'year');
+  if (y !== 'ALL') return Number(y);
+  const ys = D.ng.map(r => pd(r.tanggal)).filter(Boolean).map(d => d.getFullYear());
+  return ys.length ? Math.max(...ys) : new Date().getFullYear();
+}
+function cfgYearTrend(year, divisi, onMonth) {
+  const colors = { Bor:'#3b82f6', CNC:'#6366f1', Cutting:'#06b6d4', Harden:'#ef4444', Hexagon:'#f59e0b', Punch:'#10b981', Rolling:'#8b5cf6', Turret:'#ec4899', Lainnya:'#94a3b8' };
+  const by = {}, tot = new Array(12).fill(0);
+  D.ng.forEach(r => {
+    const d = pd(r.tanggal); if (!d || d.getFullYear() !== year || (divisi !== 'ALL' && r.divisi !== divisi)) return;
+    const dv = colors[r.divisi] ? r.divisi : 'Lainnya'; (by[dv] = by[dv] || new Array(12).fill(0))[d.getMonth()] += num(r.qtyNG); tot[d.getMonth()] += num(r.qtyNG);
+  });
+  const ds = [{ type: 'line', label: 'Total Qty NG', data: tot, borderColor: '#0f172a', borderWidth: 2.5, backgroundColor: 'transparent', pointRadius: 3, tension: .3, order: 0 }];
+  Object.keys(by).forEach(k => ds.push({ type: 'bar', label: 'Div. ' + k, data: by[k], backgroundColor: colors[k], stack: 's', order: 1 }));
+  return { type: 'bar', data: { labels: MS, datasets: ds }, options: bo({ interaction: { mode: 'index', intersect: false }, plugins: { legend: leg },
+    onClick: (e, els) => { if (onMonth && els.length) onMonth(els[0].index); },
+    scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Qty Defect (Pcs)', font: { size: 10 } } } } }) };
+}
+function snap(cfg, w, h, title) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const o = cfg.options || {};
+  const ch = new Chart(cv, { type: cfg.type, data: cfg.data, plugins: [{ id: 'bg', beforeDraw(c) { const x = c.ctx; x.save(); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.restore(); } }],
+    options: Object.assign({}, o, { responsive: false, animation: false, devicePixelRatio: 1, plugins: Object.assign({}, o.plugins, { title: { display: !!title, text: title, font: { size: 13, weight: 'bold' } } }) }) });
+  const u = cv.toDataURL('image/png'); ch.destroy(); return u;
+}
+
+/* ================= RENDER ================= */
+function render(m) {
+  ({ claim: rClaim, ng: rNG, insp: rInsp })[m](); table(m); icons();
+}
+function rClaim() {
+  const d = filtered('claim');
+  const nClaim = d.filter(c => (c.kategoriClaim || 'Claim') === 'Claim').length, nInfo = d.length - nClaim;
+  $('kpi-claim').innerHTML = kpi('Total Kasus', fmt(d.length), 'Sesuai filter', 'indigo', ['claim']) +
+    kpi('Kategori Claim', fmt(nClaim), (d.length ? (nClaim / d.length * 100).toFixed(1) : '0.0') + '% komplain resmi', 'rose', ['claim', 'kategoriClaim', 'Claim']) +
+    kpi('Kategori Informasi', fmt(nInfo), (d.length ? (nInfo / d.length * 100).toFixed(1) : '0.0') + '% informasi/early warning', 'sky', ['claim', 'kategoriClaim', 'Informasi']) +
+    kpi('Monitoring', fmt(d.filter(c => c.statusClaim === 'Monitoring').length), 'Dalam evaluasi', 'amber', ['claim', 'statusClaim', 'Monitoring']) +
+    kpi('Closed', fmt(d.filter(c => c.statusClaim === 'Closed').length), 'Terselesaikan', 'emerald', ['claim', 'statusClaim', 'Closed']) +
+    kpi('Total Qty NG', fmt(d.reduce((a, c) => a + num(c.qtyNG), 0)), 'Pieces defect', 'rose');
+  const p = cfgPareto(sum(d, r => r.kategoriNG || 'Visual', r => num(r.qtyNG)), 10, '#4f46e5', '#f43f5e', 'Qty NG', v => setDrill('claim', 'kategoriNG', v));
+  mk('claim-pareto', p.cfg);
+  $('dist').innerHTML = p.keys.length ? p.keys.map((k, i) => `<tr class="border-b border-slate-50"><td class="py-1.5 font-medium">${esc(k)}</td><td class="text-right font-semibold text-rose-600">${fmt(p.vals[i])}</td><td class="text-right">${p.tot ? (p.vals[i] / p.tot * 100).toFixed(1) : 0}%</td><td class="text-right font-bold ${p.cum[i] <= 80 ? 'text-indigo-600' : 'text-slate-500'}">${p.cum[i]}%</td></tr>`).join('') : '<tr><td colspan="4" class="py-3 text-center text-slate-400">Tidak ada data</td></tr>';
+  mk('claim-cust', cfgCust(d, v => setDrill('claim', 'namaCustomer', v)));
+  mk('claim-trend', cfgTrendClaim(d));
+  mk('claim-plant', cfgPlant(d, v => setDrill('claim', 'acjPlant', v)));
+  mk('claim-part', cfgPartClaim(d, v => setDrill('claim', 'namaPart', v)));
+}
+function rNG() {
+  const d = filtered('ng'), tq = d.reduce((a, n) => a + num(n.qtyNG), 0);
+  const dv = sum(d, r => r.divisi || 'Lainnya', r => num(r.qtyNG)), df = sum(d, r => r.jenisNG || 'Lainnya', r => num(r.qtyNG));
+  const td = Object.keys(dv).sort((a, b) => dv[b] - dv[a])[0], tf = Object.keys(df).sort((a, b) => df[b] - df[a])[0];
+  $('kpi-ng').innerHTML = kpi('Total Defect NG', fmt(tq), 'Pieces defect', 'rose') + kpi('Total Kasus/Lot', fmt(d.length), 'Frekuensi kejadian', 'blue') +
+    kpi('Top Divisi Defect', esc(td || '-'), fmt(dv[td]) + ' pcs', 'amber') + kpi('Top Jenis Problem', esc(tf || '-'), fmt(df[tf]) + ' pcs', 'indigo');
+  const parts = sum(d, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG));
+  mk('ng-pareto', cfgPareto(parts, 10, '#2563eb', '#ef4444', 'Qty NG (Pcs)', v => setDrill('ng', 'namaPart', v)).cfg);
+  mk('ng-pie', cfgPie(parts, v => setDrill('ng', 'namaPart', v)).cfg);
+  mk('ng-trend', cfgYearTrend(ngYear(), fv('ng', 'divisi'), i => { $('f-ng-month').value = String(i + 1); pg.ng = 1; render('ng'); toast('Filter bulan: ' + MONTHS[i], 'info'); }));
+  rNGMulti(d);
+}
+function rNGMulti(d) {
+  const f = $('dim').value;
+  const map = sum(d, r => r[f] || 'Tidak diisi', r => num(r.qtyNG));
+  mk('ng-multi', cfgPareto(map, 10, '#4338ca', '#ef4444', 'Qty NG', v => setDrill('ng', f, v)).cfg);
+}
+function rInsp() {
+  const d = filtered('insp'), T = k => d.reduce((a, r) => a + num(r[k]), 0), tc = T('totalCheck');
+  const pc = v => (tc ? (v / tc * 100).toFixed(2) : '0.00') + '% dari total';
+  $('kpi-insp').innerHTML = kpi('Total Part Check', fmt(tc), 'Pieces terinspeksi', 'slate') + kpi('Part OK', fmt(T('qtyOK')), pc(T('qtyOK')), 'emerald') +
+    kpi('Part NG', fmt(T('qtyNG')), pc(T('qtyNG')), 'rose') + kpi('Part Repair', fmt(T('qtyRepair')), pc(T('qtyRepair')), 'amber');
+  const parts = sum(d, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG));
+  mk('insp-pareto', cfgPareto(parts, 10, '#ef4444', '#4f46e5', 'Qty NG (Pcs)', v => setDrill('insp', 'namaPart', v)).cfg);
+  mk('insp-pie', cfgPie(parts, v => setDrill('insp', 'namaPart', v)).cfg);
+}
+function cell(col, r) {
+  const [, k, t] = col, v = r[k];
+  if (t === 'n') return `<td class="py-2 px-3 text-right font-semibold">${fmt(v)}</td>`;
+  if (t === 'p') return `<td class="py-2 px-3 text-right">${num(v)}%</td>`;
+  if (t === 'b') return `<td class="py-2 px-3">${v ? `<button data-act="doc" data-u="${esc(v)}" class="text-indigo-600 hover:underline">Buka</button>` : '-'}</td>`;
+  if (k === 'kategoriClaim') return `<td class="py-2 px-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${v === 'Informasi' ? 'bg-sky-100 text-sky-800' : 'bg-rose-100 text-rose-800'}">${esc(v || 'Claim')}</span></td>`;
+  if (k === 'kategoriNG') return `<td class="py-2 px-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${v === 'Dimensi' ? 'bg-violet-100 text-violet-800' : 'bg-amber-100 text-amber-800'}">${esc(v || 'Visual')}</span></td>`;
+  if (k === 'statusClaim') return `<td class="py-2 px-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${v === 'Closed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${esc(v || 'Monitoring')}</span></td>`;
+  return `<td class="py-2 px-3 whitespace-nowrap">${esc(v || '-')}</td>`;
+}
+function table(m) {
+  const c = MOD[m], d = filtered(m, true), total = d.length, pages = Math.ceil(total / PAGE) || 1;
+  pg[m] = Math.min(Math.max(1, pg[m]), pages);
+  const st = (pg[m] - 1) * PAGE, adm = S.user && S.user.role === 'Admin';
+  $('tb-' + m).innerHTML = d.slice(st, st + PAGE).map(r => {
+    const id = esc(r[c.idk]);
+    const act = adm && r[c.idk] ? `<div class="flex gap-1"><button data-act="edit" data-m="${m}" data-id="${id}" class="p-1 text-indigo-600 hover:bg-indigo-50 rounded" title="Edit" aria-label="Edit"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button><button data-act="del" data-m="${m}" data-id="${id}" class="p-1 text-rose-600 hover:bg-rose-50 rounded" title="Hapus" aria-label="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button></div>` : '<span class="text-slate-400 text-[10px]">Read Only</span>';
+    return `<tr class="hover:bg-slate-50"><td class="py-2 px-3">${act}</td>${c.cols.filter(x => x[3] !== 0).map(x => cell(x, r)).join('')}</tr>`;
+  }).join('');
+  $('empty-' + m).classList.toggle('hidden', total > 0);
+  $('info-' + m).textContent = `Menampilkan ${total ? st + 1 : 0}-${Math.min(st + PAGE, total)} dari ${total} data`;
+  $('pn-' + m).textContent = `${pg[m]} / ${pages}`;
+  document.querySelectorAll(`[data-act=pg][data-m=${m}]`).forEach(b => b.disabled = (b.dataset.d < 0 ? pg[m] <= 1 : pg[m] >= pages));
+  icons();
+}
+
+/* ================= FORM ================= */
+function fld(x) {
+  const id = 'fm-' + x.k, base = 'w-full px-3 py-2 border border-slate-200 rounded-xl text-xs ' + (x.ro ? 'bg-slate-200 font-mono' : 'bg-slate-50');
+  let inp;
+  if (x.t === 'sel') inp = `<select id="${id}" class="${base}">${x.o.map(o => `<option>${esc(o)}</option>`).join('')}</select>`;
+  else if (x.t === 'file') inp = `<input type="file" id="${id}" accept=".pdf,image/jpeg,image/png" class="text-xs"><span id="${id}-n" class="block text-[11px] text-indigo-600"></span>`;
+  else inp = `<input id="${id}" type="${x.t}" ${x.ro ? 'readonly' : ''} ${x.req ? 'required' : ''} ${x.list ? `list="${x.list}"` : ''} ${x.min != null ? `min="${x.min}"` : ''} class="${base}">`;
+  return `<div class="${x.w || x.t === 'file' ? 'sm:col-span-2' : ''}"><label class="block text-xs font-semibold text-slate-600 mb-1">${x.l}${x.req ? ' <span class="text-rose-500">*</span>' : ''}</label>${inp}</div>`;
+}
+function openForm(m, rec) {
+  if (!S.user || S.user.role !== 'Admin') return toast('Hanya Admin yang dapat input data!', 'error');
+  editing = { m, id: rec ? rec[MOD[m].idk] : '' };
+  $('modal').innerHTML = `<div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full mx-auto my-6 overflow-hidden">
+    <div class="px-6 py-4 bg-slate-900 text-white flex justify-between items-center"><h3 class="font-bold">${rec ? 'Edit' : 'Input'} ${MOD[m].title}</h3><button data-act="close" aria-label="Tutup" class="text-slate-300 hover:text-white">✕</button></div>
+    <form id="form" class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">${F[m].map(fld).join('')}
+      <div class="sm:col-span-2 pt-3 border-t flex justify-end gap-2"><button type="button" data-act="close" class="px-4 py-2 border rounded-xl text-xs">Batal</button><button id="fsave" class="px-5 py-2 bg-${MOD[m].color}-600 text-white rounded-xl text-xs font-semibold">Simpan</button></div></form></div>`;
+  F[m].forEach(x => {
+    if (x.t === 'file') { $('fm-' + x.k + '-n').textContent = rec && rec[x.k] ? 'File sudah terunggah (unggah baru untuk mengganti)' : ''; return; }
+    const v = rec ? rec[x.k] : (x.def != null ? x.def : x.t === 'date' ? today() : '');
+    $('fm-' + x.k).value = v == null ? '' : v;
+  });
+  $('form').addEventListener('input', calcForm); $('form').addEventListener('submit', submitForm);
+  calcForm(); $('modal').classList.remove('hidden');
+}
+function calcForm() {
+  const m = editing.m, g = k => num($('fm-' + k).value);
+  if (m === 'claim') {
+    $('fm-prosentase').value = (g('qtyCheck') > 0 ? (g('qtyNG') / g('qtyCheck') * 100).toFixed(2) : '0.00') + '%';
+    const t = $('fm-tanggalClaim').value; $('fm-finishMonitoring').value = t ? add90(t) : '';
+  }
+  if (m === 'insp') $('fm-totalCheck').value = g('qtyOK') + g('qtyNG') + g('qtyRepair');
+}
+const readB64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(f); });
+async function submitForm(e) {
+  e.preventDefault();
+  const { m, id } = editing, btn = $('fsave'); btn.disabled = true; btn.textContent = 'Menyimpan...';
+  try {
+    const f = { id };
+    for (const x of F[m]) {
+      if (x.ro) continue;
+      if (x.t === 'file') {
+        const file = $('fm-' + x.k).files[0]; if (!file) continue;
+        if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) throw new Error('Tipe file hanya PDF/JPG/PNG.');
+        if (file.size > 4 * 1024 * 1024) throw new Error('Ukuran file maksimal 4 MB.');
+        f[x.k + 'Base64'] = await readB64(file); f[x.k + 'Name'] = file.name;
+      } else f[x.k] = $('fm-' + x.k).value;
+    }
+    const r = await call('apiSave', m, f);
+    if (r.success) { $('modal').classList.add('hidden'); toast(r.message, 'success'); sync(); } else toast(r.message, 'error');
+  } catch (err) { toast('Gagal simpan: ' + (err.message || err), 'error'); }
+  finally { btn.disabled = false; btn.textContent = 'Simpan'; }
+}
+async function openDoc(url) {
+  const w = window.open('', '_blank');
+  try {
+    const r = await call('apiGetFile', url);
+    if (!r.success) { if (w) w.close(); return toast(r.message, 'error'); }
+    const bin = atob(r.data), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const u = URL.createObjectURL(new Blob([arr], { type: r.mime }));
+    if (w) w.location = u; else toast('Popup diblokir browser.', 'error');
+  } catch (e) { if (w) w.close(); toast('Gagal membuka file: ' + e.message, 'error'); }
+}
+
+/* ================= EXPORT (Claim, NG, Inspection) ================= */
+const cellVal = (x, r) => x[2] === 'n' || x[2] === 'p' ? num(r[x[1]]) : x[2] === 'b' ? (r[x[1]] ? 'Ada' : '-') : (r[x[1]] || '-');
+const by = () => S.user ? `${S.user.fullName} (${S.user.role})` : 'System';
+function exportData(m, f) {
+  const c = MOD[m], rows = filtered(m, true);
+  if (!rows.length) return toast('Tidak ada data untuk diexport', 'error');
+  const stamp = today().replace(/-/g, ''), now = new Date().toLocaleString('id-ID');
+  try {
+    if (f === 'excel') {
+      if (!window.XLSX) throw new Error('Library Excel belum termuat.');
+      const hdr = ['NO', ...c.cols.map(x => x[0].toUpperCase())];
+      const aoa = [['PT. ADHI CHANDRA JAYA - QUALITY ASSURANCE DEPARTMENT'], ['LAPORAN ' + c.title.toUpperCase()], [], ['Waktu Ekspor', ': ' + now], ['Diekspor Oleh', ': ' + by()], ['Jumlah Data', ': ' + rows.length], [], hdr];
+      rows.forEach((r, i) => aoa.push([i + 1, ...c.cols.map(x => cellVal(x, r))]));
+      aoa.push(['TOTAL', ...c.cols.map(x => x[2] === 'n' ? rows.reduce((a, r) => a + num(r[x[1]]), 0) : '')]);
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = hdr.map(h => ({ wch: Math.max(10, Math.min(32, h.length + 6)) }));
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, c.sheet);
+      XLSX.writeFile(wb, `ACJ_${c.sheet}_${stamp}.xlsx`);
+    } else {
+      const J = window.jspdf && window.jspdf.jsPDF; if (!J) throw new Error('Library PDF belum termuat.');
+      const doc = new J('l', 'pt', 'a4'), W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+      doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.text('Laporan ' + c.title + ' - PT. ADHI CHANDRA JAYA', 30, 30);
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.text(`Dicetak: ${now} | Oleh: ${by()} | ${rows.length} data`, 30, 43);
+      const rgb = { indigo: [79,70,229], blue: [37,99,235], emerald: [5,150,105] }[c.color];
+      doc.autoTable({ head: [c.cols.map(x => x[0])], body: rows.map(r => c.cols.map(x => { const v = cellVal(x, r); return x[2] === 'n' ? fmt(v) : x[2] === 'p' ? v + '%' : v; })),
+        startY: 52, theme: 'striped', margin: { left: 30, right: 30 }, styles: { fontSize: 6.5, cellPadding: 3 }, headStyles: { fillColor: rgb },
+        didDrawPage: () => { doc.setFontSize(7); doc.setTextColor(120); doc.text('Halaman ' + doc.internal.getCurrentPageInfo().pageNumber, W - 30, H - 14, { align: 'right' }); } });
+      doc.save(`ACJ_${c.sheet}_${stamp}.pdf`);
+    }
+    toast('Export berhasil diunduh!', 'success');
+  } catch (err) { console.error(err); toast('Gagal export: ' + err.message, 'error'); }
+}
+
+/* ================= LAPORAN EKSEKUTIF PDF (LANDSCAPE) ================= */
+function execReport() {
+  toast('Menyiapkan Laporan Eksekutif PDF...', 'info');
+  setTimeout(() => {
+    try {
+      const J = window.jspdf && window.jspdf.jsPDF; if (!J) throw new Error('Library PDF belum termuat.');
+      const doc = new J('l', 'pt', 'a4'), W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+      const M = 28, CW = W - 2 * M, HALF = (CW - 12) / 2, now = new Date().toLocaleString('id-ID');
+      const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+      const header = (title, badge) => {
+        doc.setFillColor(15, 23, 42); doc.rect(M, 20, CW, 56, 'F');
+        doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text('PT. ADHI CHANDRA JAYA', M + 12, 38);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(203, 213, 225);
+        doc.text('Metal Processing for Automotive Parts, Electronics and House Accessories', M + 12, 50);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(255); doc.text(badge, W - M - 12, 38, { align: 'right' });
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(203, 213, 225); doc.text(`Waktu Cetak: ${now} | User: ${by()}`, W - M - 12, 52, { align: 'right' });
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(15, 23, 42); doc.text(title, M, 92);
+        doc.setDrawColor(226, 232, 240); doc.line(M, 98, W - M, 98);
+      };
+      const banner = (y, list) => {
+        doc.setFillColor(241, 245, 249); doc.roundedRect(M, y, CW, 20, 3, 3, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(15, 23, 42); doc.text('FILTER ANALISIS AKTIF:', M + 8, y + 13);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(51, 65, 85);
+        const t = list.map(([k, v]) => `${k}: [ ${v} ]`).join('   |   '); doc.text(t.length > 170 ? t.slice(0, 167) + '...' : t, M + 112, y + 13);
+        return y + 28;
+      };
+      const kbox = (x, y, w, label, val, col, sub) => {
+        doc.setFillColor(248, 250, 252); doc.roundedRect(x, y, w, 36, 4, 4, 'F'); doc.setDrawColor(226, 232, 240); doc.roundedRect(x, y, w, 36, 4, 4, 'S');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(100, 116, 139); doc.text(label, x + 8, y + 11);
+        doc.setFontSize(10); doc.setTextColor(...col); doc.text(String(val).slice(0, 40), x + 8, y + 24); if (sub) { doc.setFontSize(6.5); doc.text(sub, x + 8, y + 32); }
+      };
+      const kRow = (y, items) => { const w = (CW - (items.length - 1) * 6) / items.length; items.forEach((it, i) => kbox(M + i * (w + 6), y, w, ...it)); return y + 44; };
+      const legend = (x, y, w, h, title, items) => {
+        doc.setFillColor(248, 250, 252); doc.roundedRect(x, y, w, h, 4, 4, 'F'); doc.setDrawColor(226, 232, 240); doc.roundedRect(x, y, w, h, 4, 4, 'S');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(15, 23, 42); doc.text(title, x + 10, y + 14);
+        const sp = Math.min(20, (h - 30) / Math.max(1, items.length)); let ry = y + 30;
+        items.forEach(it => {
+          doc.setFillColor(...rgb(it.color)); doc.roundedRect(x + 10, ry - 7, 8, 8, 2, 2, 'F');
+          doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(30, 41, 59); doc.text(it.label.length > 24 ? it.label.slice(0, 22) + '...' : it.label, x + 23, ry);
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(71, 85, 105); doc.text(`${fmt(it.qty)} pcs (${it.pct}%)`, x + w - 10, ry, { align: 'right' }); ry += sp;
+        });
+      };
+      const lbl = (v, all, f) => v === 'ALL' ? all : (f ? f(v) : v);
+
+      // ---- HALAMAN 1: CLAIM ----
+      const dc = filtered('claim');
+      header('1. LAPORAN AUDIT REGISTER CLAIM CUSTOMER', 'BAGIAN 1 - CLAIM');
+      let y = banner(104, [['Tahun', lbl(fv('claim','year'), 'Semua Tahun')], ['Customer', lbl(fv('claim','customer'), 'Semua Customer')], ['Plant', lbl(fv('claim','plant'), 'Semua Plant')], ['Kategori', lbl(fv('claim','kategori'), 'Semua Kategori')], ...($('q-claim').value ? [['Pencarian', $('q-claim').value]] : [])]);
+      const cl = dc.filter(c => c.statusClaim === 'Closed').length;
+      const nCl = dc.filter(c => (c.kategoriClaim || 'Claim') === 'Claim').length;
+      y = kRow(y, [['TOTAL KASUS', fmt(dc.length) + ' Kasus', [79,70,229]], ['KATEGORI CLAIM', fmt(nCl) + ' Kasus', [225,29,72]], ['KATEGORI INFORMASI', fmt(dc.length - nCl) + ' Kasus', [2,132,199]], ['MONITORING', fmt(dc.length - cl) + ' Kasus', [217,119,6]], ['CLOSED', fmt(cl) + ' Kasus', [5,150,105]], ['TOTAL QTY DEFECT', fmt(dc.reduce((a, c) => a + num(c.qtyNG), 0)) + ' Pcs', [225,29,72]]]);
+      doc.addImage(snap(cfgCust(dc), 620, 230, 'Top 5 Customer Terbanyak (Kasus)'), 'PNG', M, y, HALF, 143);
+      doc.addImage(snap(cfgTrendClaim(dc), 620, 230, 'Tren Kasus & Qty Defect Bulanan'), 'PNG', M + HALF + 12, y, HALF, 143);
+      y += 152;
+      const MAXR = 100;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
+      doc.text(`Log Register Claim Customer (sesuai filter aktif${dc.length > MAXR ? `, ${MAXR} dari ${dc.length} data - selengkapnya lihat portal/Excel` : ''}):`, M, y);
+      const p1 = doc.internal.getCurrentPageInfo().pageNumber;
+      doc.autoTable({ startY: y + 6, margin: { left: M, right: M, top: 106 }, theme: 'striped', styles: { fontSize: 6.5, cellPadding: 3 }, headStyles: { fillColor: [79, 70, 229] },
+        head: [['ID Reg','Tanggal','Plant','Kategori','Customer','No Claim','Nama Part','Jenis NG','Check','NG','%','Status','Doc','PICA']],
+        body: dc.length ? dc.slice(0, MAXR).map(c => [c.idRegister, c.tanggalClaim, c.acjPlant, c.kategoriClaim || 'Claim', c.namaCustomer, c.noClaim || '-', c.namaPart, c.keteranganJenisNG, fmt(c.qtyCheck), fmt(c.qtyNG), num(c.prosentase) + '%', c.statusClaim, c.officialDoc ? 'Ada' : '-', c.pica ? 'Ada' : '-']) : [['-','Tidak ada data claim pada filter ini','-','-','-','-','-','-','-','-','-','-','-','-']],
+        didDrawPage: d => { if (d.pageNumber > p1) header('1. LAPORAN AUDIT REGISTER CLAIM CUSTOMER (lanjutan)', 'BAGIAN 1 - CLAIM'); } });
+
+      // ---- HALAMAN 2: NG ----
+      const dn = filtered('ng');
+      doc.addPage(); header('2. EVALUASI DATABASE NG INTERNAL PRODUKSI', 'BAGIAN 2 - NG');
+      y = banner(104, [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')], ...($('q-ng').value ? [['Pencarian', $('q-ng').value]] : [])]);
+      const dv = sum(dn, r => r.divisi || 'Lainnya', r => num(r.qtyNG)), df = sum(dn, r => r.jenisNG || 'Lainnya', r => num(r.qtyNG));
+      const td = Object.keys(dv).sort((a, b) => dv[b] - dv[a])[0], tf = Object.keys(df).sort((a, b) => df[b] - df[a])[0];
+      y = kRow(y, [['TOTAL DEFECT NG', fmt(dn.reduce((a, n) => a + num(n.qtyNG), 0)) + ' Pcs', [225,29,72]], ['TOP DIVISI DEFECT', td ? `${td} (${fmt(dv[td])} pcs)` : '-', [217,119,6]], ['TOP JENIS PROBLEM', tf ? `${tf} (${fmt(df[tf])} pcs)` : '-', [79,70,229]]]);
+      const yr = ngYear(), TW = 500, TH = H - y - 60;
+      doc.addImage(snap(cfgYearTrend(yr, fv('ng', 'divisi')), 1000, Math.round(1000 * TH / TW), `Tren Jumlah NG Tahun ${yr} (Akumulasi Bulanan per Divisi)`), 'PNG', M, y, TW, TH);
+      const rx = M + TW + 12, rw = CW - TW - 12, pie = cfgPie(sum(dn, r => r.namaPart || 'Tanpa Nama', r => num(r.qtyNG)));
+      pie.cfg.options.plugins.legend = { display: false };
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42); doc.text('Top 5 Part NG Tertinggi', rx, y + 8);
+      const ps = Math.min(130, TH * 0.5); doc.addImage(snap(pie.cfg, 400, 400), 'PNG', rx + (rw - ps) / 2, y + 14, ps, ps);
+      legend(rx, y + ps + 20, rw, TH - ps - 20, 'Rincian Part NG Kritis', pie.items);
+
+      // ---- HALAMAN 3: PARETO MULTI-DIMENSI ----
+      doc.addPage(); header('2.1 EVALUASI PARETO MULTI-DIMENSI DEFECT NG', 'BAGIAN 2 - PARETO NG');
+      y = banner(104, [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')]]);
+      const PH = (H - y - 40) / 2 - 6;
+      [['namaPart','1. Pareto by Jumlah Part NG'], ['jenisNG','2. Pareto by Jenis Problem NG'], ['namaOperator','3. Pareto by Nama Operator'], ['noMesin','4. Pareto by Nomor Mesin']].forEach(([f, t], i) => {
+        const cfg = cfgPareto(sum(dn, r => r[f] || 'Tidak diisi', r => num(r.qtyNG)), 8, '#2563eb', '#ef4444', 'Qty NG').cfg;
+        doc.addImage(snap(cfg, 770, Math.round(770 * PH / HALF), t), 'PNG', M + (i % 2) * (HALF + 12), y + Math.floor(i / 2) * (PH + 12), HALF, PH);
+      });
+
+      // ---- HALAMAN 4: INSPECTION + PENGESAHAN ----
+      const di = filtered('insp'), T = k => di.reduce((a, r) => a + num(r[k]), 0), tc = T('totalCheck'), pc = v => `${tc ? (v / tc * 100).toFixed(2) : '0.00'}%`;
+      doc.addPage(); header('3. MONITORING DATA INSPECTION & PENGESAHAN', 'BAGIAN 3 - INSPECTION');
+      y = banner(104, [['Tahun', lbl(fv('insp','year'), 'Semua Tahun')], ['Bulan', lbl(fv('insp','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('insp','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Customer', lbl(fv('insp','customer'), 'Semua Customer')], ...($('q-insp').value ? [['Pencarian', $('q-insp').value]] : [])]);
+      y = kRow(y, [['TOTAL PART CHECK', fmt(tc) + ' Pcs', [15,23,42], '100%'], ['PART OK (LOLOS)', fmt(T('qtyOK')) + ' Pcs', [5,150,105], pc(T('qtyOK'))], ['PART NG (DEFECT)', fmt(T('qtyNG')) + ' Pcs', [225,29,72], pc(T('qtyNG'))], ['PART REPAIR', fmt(T('qtyRepair')) + ' Pcs', [217,119,6], pc(T('qtyRepair'))]]);
+      const ip = sum(di, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG)), IH = 175;
+      doc.addImage(snap(cfgPareto(ip, 8, '#ef4444', '#4f46e5', 'Qty NG (Pcs)').cfg, 770, Math.round(770 * IH / HALF), 'Pareto Chart NG Tertinggi Data Inspection (80/20)'), 'PNG', M, y, HALF, IH);
+      const ipie = cfgPie(ip); ipie.cfg.options.plugins.legend = { display: false };
+      const rx2 = M + HALF + 12; doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42); doc.text('Top 5 Part NG Tertinggi Inspeksi', rx2, y + 8);
+      doc.addImage(snap(ipie.cfg, 400, 400), 'PNG', rx2, y + 14, IH - 14, IH - 14);
+      legend(rx2 + IH - 6, y + 14, HALF - IH + 6, IH - 14, 'Rincian Part', ipie.items);
+      const sy = H - 120, cw3 = CW / 3;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(15, 23, 42); doc.text('LEMBAR VERIFIKASI & PENGESAHAN LAPORAN AUDIT MUTU:', M, sy - 8);
+      ['Dipersiapkan Oleh:', 'Diverifikasi Oleh:', 'Disetujui Oleh:'].forEach((t, i) => {
+        const sx = M + i * cw3; doc.setDrawColor(203, 213, 225); doc.rect(sx, sy, cw3 - 6, 80, 'S');
+        doc.setFontSize(7); doc.setTextColor(71, 85, 105); doc.text(t, sx + 8, sy + 12); doc.line(sx + 10, sy + 56, sx + cw3 - 16, sy + 56);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 116, 139); doc.text(['QC Inspector', 'Kabag QA', 'Management'][i], sx + 8, sy + 68); doc.setFont('helvetica', 'bold');
+      });
+
+      // Footer semua halaman
+      const n = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= n; p++) {
+        doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(148, 163, 184);
+        doc.text('Dokumen ini dihasilkan otomatis oleh ACJ Quality Portal', M, H - 14); doc.text(`Halaman ${p} dari ${n}`, W - M, H - 14, { align: 'right' });
+      }
+      doc.save(`ACJ_Executive_Quality_Report_${today().replace(/-/g, '')}.pdf`);
+      toast('Laporan Eksekutif PDF (landscape) berhasil diunduh!', 'success');
+    } catch (err) { console.error(err); toast('Gagal membuat PDF: ' + err.message, 'error'); }
+  }, 50);
+}
+
+/* ================= PRINT & PRINT PREVIEW ================= */
+function filterSummary(m) {
+  const out = [];
+  document.querySelectorAll(`#v-${m} select.flt`).forEach(sl => {
+    if (!sl.id.startsWith('f-') || sl.value === 'ALL') return;
+    const lab = sl.options[0].textContent.replace(/^Semua\s+/i, '');
+    out.push([lab, sl.options[sl.selectedIndex].textContent]);
+  });
+  const q = ($('q-' + m).value || '').trim(); if (q) out.push(['Pencarian', q]);
+  const dr = drill[m]; if (dr) out.push(['Drill', dr.value]);
+  return out;
+}
+function buildPrintHTML(m, orient, forPreview) {
+  const c = MOD[m], rows = filtered(m, true), cols = c.cols.filter(x => x[3] !== 0);
+  const val = (x, r) => x[2] === 'n' ? fmt(r[x[1]]) : x[2] === 'p' ? num(r[x[1]]) + '%' : x[2] === 'b' ? (r[x[1]] ? 'Ada' : '-') : (r[x[1]] || '-');
+  const head = '<th>No</th>' + cols.map(x => `<th class="${x[2] === 'n' || x[2] === 'p' ? 'r' : ''}">${esc(x[0])}</th>`).join('');
+  const body = rows.map((r, i) => `<tr><td class="r">${i + 1}</td>${cols.map(x => `<td class="${x[2] === 'n' || x[2] === 'p' ? 'r' : ''}">${esc(val(x, r))}</td>`).join('')}</tr>`).join('');
+  const tot = cols.some(x => x[2] === 'n') ? `<tr class="tot"><td colspan="1">TOTAL</td>${cols.map(x => `<td class="r">${x[2] === 'n' ? fmt(rows.reduce((a, r) => a + num(r[x[1]]), 0)) : ''}</td>`).join('')}</tr>` : '';
+  const fs = filterSummary(m), now = new Date().toLocaleString('id-ID');
+  const fl = fs.length ? fs.map(([k, v]) => `<b>${esc(k)}</b>: ${esc(v)}`).join(' &nbsp;|&nbsp; ') : 'Tanpa filter (semua data)';
+  const fz = cols.length > 14 ? 7 : cols.length > 10 ? 8 : 9;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Laporan ${esc(c.title)}</title><style>
+@page{size:A4 ${orient};margin:10mm}
+*{box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;font-size:${fz}px}
+${forPreview ? '@media screen{body{background:#cbd5e1;padding:16px}.sheet{background:#fff;max-width:' + (orient === 'landscape' ? '1123px' : '794px') + ';margin:0 auto;padding:24px;box-shadow:0 4px 18px rgba(0,0,0,.25)}}' : ''}
+.top{border-bottom:2px solid #0f172a;padding-bottom:6px;margin-bottom:8px}
+.top h1{font-size:14px;margin:0}.top h2{font-size:12px;margin:2px 0 0;color:#334155}
+.meta{font-size:${fz}px;color:#475569;margin:6px 0 10px;line-height:1.6}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #94a3b8;padding:3px 5px;text-align:left;vertical-align:top;word-break:break-word}
+th{background:#1e293b;color:#fff;font-size:${fz}px;text-transform:uppercase}
+thead{display:table-header-group}tr{page-break-inside:avoid}
+tbody tr:nth-child(even) td{background:#f1f5f9}
+.r{text-align:right}.tot td{font-weight:bold;background:#e2e8f0!important}
+.foot{margin-top:10px;font-size:${fz - 1}px;color:#64748b}
+th,tbody tr:nth-child(even) td,.tot td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+</style></head><body><div class="sheet">
+<div class="top"><h1>PT. ADHI CHANDRA JAYA - QUALITY ASSURANCE DEPARTMENT</h1><h2>LAPORAN ${esc(c.title.toUpperCase())}</h2></div>
+<div class="meta"><b>Dicetak</b>: ${esc(now)} &nbsp;|&nbsp; <b>Oleh</b>: ${esc(by())} &nbsp;|&nbsp; <b>Jumlah Data</b>: ${rows.length}<br><b>Filter</b>: ${fl}</div>
+<table><thead><tr>${head}</tr></thead><tbody>${body || `<tr><td colspan="${cols.length + 1}" style="text-align:center;padding:14px">Tidak ada data.</td></tr>`}${tot}</tbody></table>
+<div class="foot">Dokumen dihasilkan oleh ACJ Quality Portal.</div>
+</div></body></html>`;
+}
+let pv = { m: null };
+function openPreview(m) {
+  if (!filtered(m, true).length) return toast('Tidak ada data untuk dicetak', 'error');
+  pv.m = m; $('pvTitle').textContent = 'Print Preview - ' + MOD[m].title;
+  $('pvOrient').value = MOD[m].cols.length > 8 ? 'landscape' : 'portrait';
+  drawPreview(); $('pvModal').classList.remove('hidden'); icons();
+}
+function drawPreview() { $('pvFrame').srcdoc = buildPrintHTML(pv.m, $('pvOrient').value, true); }
+function printFrame(fr) {
+  try { fr.contentWindow.focus(); fr.contentWindow.print(); }
+  catch (e) { toast('Gagal mencetak: ' + e.message, 'error'); }
+}
+function directPrint(m) {
+  if (!filtered(m, true).length) return toast('Tidak ada data untuk dicetak', 'error');
+  const fr = document.createElement('iframe');
+  fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  fr.onload = () => { printFrame(fr); setTimeout(() => fr.remove(), 60000); };
+  fr.srcdoc = buildPrintHTML(m, MOD[m].cols.length > 8 ? 'landscape' : 'portrait', false);
+  document.body.appendChild(fr);
+}
+
+/* ================= SESI & SYNC ================= */
+function enter(user, token, fresh) {
+  S.user = user; S.token = token;
+  try { sessionStorage.setItem('acj_sess', JSON.stringify({ user, token })); } catch (e) {}
+  $('login').classList.add('hidden'); $('hdr').classList.remove('hidden'); $('app').classList.remove('hidden');
+  $('role').textContent = `${user.fullName} (${user.role})`;
+  $('role').className = 'text-[10px] font-bold px-2 py-0.5 rounded-full uppercase truncate ' + (user.role === 'Admin' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800');
+  document.querySelectorAll('.adm').forEach(e => e.classList.toggle('hidden', user.role !== 'Admin'));
+  if (fresh) toast('Selamat datang, ' + user.fullName, 'success');
+  setTab(S.tab); sync();
+  clearInterval(timer); timer = setInterval(() => { if (!document.hidden) sync(); }, 120000);
+}
+function doLogout(expired) {
+  if (S.token && !expired) call('apiLogout').catch(() => {});
+  clearInterval(timer); S.token = null; S.user = null;
+  try { sessionStorage.removeItem('acj_sess'); } catch (e) {}
+  D.claim = []; D.ng = []; D.insp = [];
+  $('login').classList.remove('hidden'); $('hdr').classList.add('hidden'); $('app').classList.add('hidden'); $('loginForm').reset();
+  toast(expired ? 'Sesi berakhir, silakan login ulang.' : 'Berhasil logout', 'info');
+}
+async function sync(manual) {
+  if (!S.token) return;
+  const ic = $('syncIcon'); ic.classList.add('animate-spin');
+  try {
+    const r = await call('apiGetAllData');
+    if (r.success) {
+      D.claim = r.claims || []; D.ng = r.ngRecords || []; D.insp = r.inspections || [];
+      popYears(); popCustomers(r.customerList || []);
+      $('sync').textContent = 'Sync: ' + new Date().toLocaleTimeString('id-ID');
+      render(S.tab); if (manual) toast('Data berhasil disinkronkan!', 'success');
+    } else if (!/Sesi/.test(r.message || '')) toast(r.message, 'error');
+  } catch (e) { toast('Gagal sinkronisasi: ' + e.message, 'error'); }
+  finally { ic.classList.remove('animate-spin'); }
+}
+
+/* ================= EVENT ================= */
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const { act, m, id, f, d, u } = b.dataset;
+  if (act === 'tab') setTab(m);
+  else if (act === 'kpi') {
+    const { field, value } = b.dataset, cur = drill[m];
+    if (!field || (cur && cur.field === field && cur.value === value)) { drill[m] = null; badge(m); pg[m] = 1; table(m); }
+    else setDrill(m, field, value);
+    if (m === 'claim') rClaim();
+  }
+  else if (act === 'add') openForm(m);
+  else if (act === 'edit') { const r = D[m].find(x => x[MOD[m].idk] === id); if (r) openForm(m, r); }
+  else if (act === 'del') {
+    if (!confirm('Yakin menghapus data ini? Tindakan tercatat di Audit Log.')) return;
+    call('apiDelete', m, id).then(r => { toast(r.message, r.success ? 'success' : 'error'); if (r.success) sync(); }).catch(er => toast('Gagal hapus: ' + er.message, 'error'));
+  }
+  else if (act === 'exp') exportData(m, f);
+  else if (act === 'preview') openPreview(m);
+  else if (act === 'print') directPrint(m);
+  else if (act === 'pvprint') printFrame($('pvFrame'));
+  else if (act === 'pvclose') { $('pvModal').classList.add('hidden'); $('pvFrame').srcdoc = ''; }
+  else if (act === 'exec') execReport();
+  else if (act === 'sync') sync(true);
+  else if (act === 'logout') doLogout(false);
+  else if (act === 'close') $('modal').classList.add('hidden');
+  else if (act === 'doc') openDoc(u);
+  else if (act === 'pg') { pg[m] += Number(d); table(m); }
+  else if (act === 'cdrill') { drill[m] = null; badge(m); pg[m] = 1; table(m); if (m === 'claim') rClaim(); }
+  else if (act === 'reset') {
+    document.querySelectorAll(`#v-${m} select.flt`).forEach(s => s.value = 'ALL'); $('q-' + m).value = ''; drill[m] = null; badge(m); pg[m] = 1; render(m); toast('Filter di-reset', 'info');
+  }
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'pvOrient') return drawPreview();
+  if (!e.target.classList.contains('flt')) return;
+  const m = e.target.dataset.m; pg[m] = 1; render(m);
+});
+let qT; document.addEventListener('input', e => {
+  if (!e.target.classList.contains('srch')) return;
+  const m = e.target.dataset.m; clearTimeout(qT); qT = setTimeout(() => { pg[m] = 1; render(m); }, 250);
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault(); const b = $('lb'); b.disabled = true; b.textContent = 'Memverifikasi...';
+  try {
+    const r = await call('apiLogin', $('lu').value.trim(), $('lp').value);
+    if (r.success) enter(r.user, r.token, true); else toast(r.message, 'error');
+  } catch (err) { toast('Gagal login: ' + err.message, 'error'); }
+  finally { b.disabled = false; b.textContent = 'Masuk Sistem'; }
+});
+window.addEventListener('load', () => {
+  buildApp(); icons();
+  try { const s = JSON.parse(sessionStorage.getItem('acj_sess') || 'null'); if (s && s.token && s.user) enter(s.user, s.token, false); } catch (e) {}
+});
+</script>
+</body>
+</html>
