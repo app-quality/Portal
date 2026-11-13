@@ -232,7 +232,7 @@ function buildWeeks(m) {
 function shell(m) {
   const c = MOD[m], col = c.color;
   let fl = sel(m, 'year', 'Semua Tahun', []);
-  if (m === 'claim') fl += sel(m, 'customer', 'Semua Customer', []) + sel(m, 'plant', 'Semua Plant', PLANTS.map(x => [x, x])) + sel(m, 'kategori', 'Semua Kategori', [['Claim','Claim'],['Informasi','Informasi']]);
+  if (m === 'claim') fl += sel(m, 'month', 'Semua Bulan', MONTHS.map((x, i) => [i + 1, x])) + sel(m, 'customer', 'Semua Customer', []) + sel(m, 'plant', 'Semua Plant', PLANTS.map(x => [x, x])) + sel(m, 'kategori', 'Semua Kategori', [['Claim','Claim'],['Informasi','Informasi']]);
   else {
     fl += sel(m, 'month', 'Semua Bulan', MONTHS.map((x, i) => [i + 1, x])) + weekWidget(m);
     if (m === 'insp') fl += sel(m, 'customer', 'Semua Customer', []);
@@ -642,7 +642,7 @@ function execReport() {
       // ---- HALAMAN 1: CLAIM ----
       const dc = filtered('claim');
       header('1. LAPORAN AUDIT REGISTER CLAIM CUSTOMER', 'BAGIAN 1 - CLAIM');
-      let y = banner(104, [['Tahun', lbl(fv('claim','year'), 'Semua Tahun')], ['Customer', lbl(fv('claim','customer'), 'Semua Customer')], ['Plant', lbl(fv('claim','plant'), 'Semua Plant')], ['Kategori', lbl(fv('claim','kategori'), 'Semua Kategori')], ...($('q-claim').value ? [['Pencarian', $('q-claim').value]] : [])]);
+      let y = banner(104, [['Tahun', lbl(fv('claim','year'), 'Semua Tahun')], ['Bulan', lbl(fv('claim','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Customer', lbl(fv('claim','customer'), 'Semua Customer')], ['Plant', lbl(fv('claim','plant'), 'Semua Plant')], ['Kategori', lbl(fv('claim','kategori'), 'Semua Kategori')], ...($('q-claim').value ? [['Pencarian', $('q-claim').value]] : [])]);
       const cl = dc.filter(c => c.statusClaim === 'Closed').length;
       const nCl = dc.filter(c => (c.kategoriClaim || 'Claim') === 'Claim').length;
       y = kRow(y, [['TOTAL KASUS', fmt(dc.length) + ' Kasus', [79,70,229]], ['KATEGORI CLAIM', fmt(nCl) + ' Kasus', [225,29,72]], ['KATEGORI INFORMASI', fmt(dc.length - nCl) + ' Kasus', [2,132,199]], ['MONITORING', fmt(dc.length - cl) + ' Kasus', [217,119,6]], ['CLOSED', fmt(cl) + ' Kasus', [5,150,105]], ['TOTAL QTY DEFECT', fmt(dc.reduce((a, c) => a + num(c.qtyNG), 0)) + ' Pcs', [225,29,72]]]);
