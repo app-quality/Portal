@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lucide@0.383.0/dist/umd/lucide.min.js"></script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <style>
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
 .tbl{content-visibility:auto;contain-intrinsic-size:400px;-webkit-overflow-scrolling:touch}
@@ -32,6 +33,7 @@ body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-web
       <input id="lu" required autocomplete="username" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></div>
     <div><label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Password</label>
       <input id="lp" type="password" required autocomplete="current-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></div>
+    <div id="ts" class="flex justify-center min-h-[65px]"></div>
     <button id="lb" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl">Masuk Sistem</button>
   </form>
 </div>
@@ -147,6 +149,22 @@ const F = {
 /* ================= API ================= */
 // >>> GANTI dengan URL Web App Apps Script Anda (hasil Deploy, berakhiran /exec) <<<
 const API_URL = 'https://script.google.com/macros/s/AKfycbzM1pQqPv8Uv5hsmwkGN_x39vgKD3xu-WSv0VYhLfIWYjMHTmpQth3mmF87oDxMfct94w/exec';
+
+// >>> GANTI dengan Site Key Cloudflare Turnstile (dashboard Cloudflare > Turnstile). Site key boleh publik. <<<
+const TURNSTILE_SITEKEY = '0x4AAAAAAF_JNNxBwXPQpQm_';
+let tsId = null;
+function tsInit() {
+  if (tsId !== null) return;
+  if (!window.turnstile) return setTimeout(tsInit, 300);
+  if (/GANTI_DENGAN/.test(TURNSTILE_SITEKEY)) return toast('TURNSTILE_SITEKEY di index.html belum diisi.', 'error');
+  tsId = turnstile.render('#ts', {
+    sitekey: TURNSTILE_SITEKEY,
+    'expired-callback': () => tsReset(),
+    'error-callback': () => toast('Verifikasi keamanan gagal dimuat. Muat ulang halaman.', 'error')
+  });
+}
+const tsToken = () => (window.turnstile && tsId !== null) ? turnstile.getResponse(tsId) : '';
+const tsReset = () => { try { if (window.turnstile && tsId !== null) turnstile.reset(tsId); } catch (e) {} };
 
 function call(fn, ...args) {
   if (/GANTI_DENGAN/.test(API_URL)) return Promise.reject(new Error('API_URL di index.html belum diisi dengan URL Web App Apps Script.'));
@@ -797,15 +815,18 @@ let qT; document.addEventListener('input', e => {
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
 $('loginForm').addEventListener('submit', async e => {
-  e.preventDefault(); const b = $('lb'); b.disabled = true; b.textContent = 'Memverifikasi...';
+  e.preventDefault();
+  const cf = tsToken();
+  if (!cf) return toast('Selesaikan verifikasi keamanan terlebih dahulu.', 'error');
+  const b = $('lb'); b.disabled = true; b.textContent = 'Memverifikasi...';
   try {
-    const r = await call('apiLogin', $('lu').value.trim(), $('lp').value);
+    const r = await call('apiLogin', $('lu').value.trim(), $('lp').value, cf);
     if (r.success) enter(r.user, r.token, true); else toast(r.message, 'error');
   } catch (err) { toast('Gagal login: ' + err.message, 'error'); }
-  finally { b.disabled = false; b.textContent = 'Masuk Sistem'; }
+  finally { b.disabled = false; b.textContent = 'Masuk Sistem'; tsReset(); }
 });
 window.addEventListener('load', () => {
-  buildApp(); icons();
+  buildApp(); icons(); tsInit();
   try { const s = JSON.parse(sessionStorage.getItem('acj_sess') || 'null'); if (s && s.token && s.user) enter(s.user, s.token, false); } catch (e) {}
 });
 </script>
