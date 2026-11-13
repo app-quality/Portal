@@ -13,6 +13,7 @@
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 <style>
 body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+summary::-webkit-details-marker{display:none}
 .tbl{content-visibility:auto;contain-intrinsic-size:400px;-webkit-overflow-scrolling:touch}
 @media print{#hdr,#toast,#pvModal,#modal{display:none!important}}
 </style>
@@ -151,7 +152,7 @@ const F = {
 const API_URL = 'https://script.google.com/macros/s/AKfycbzM1pQqPv8Uv5hsmwkGN_x39vgKD3xu-WSv0VYhLfIWYjMHTmpQth3mmF87oDxMfct94w/exec';
 
 // >>> GANTI dengan Site Key Cloudflare Turnstile (dashboard Cloudflare > Turnstile). Site key boleh publik. <<<
-const TURNSTILE_SITEKEY = '0x4AAAAAAF_JNNxBwXPQpQm_';
+const TURNSTILE_SITEKEY = 'GANTI_DENGAN_SITE_KEY';
 let tsId = null;
 function tsInit() {
   if (tsId !== null) return;
@@ -192,12 +193,48 @@ function kpi(label, val, sub, color, dr) {
 function sel(m, k, label, opts) {
   return `<select id="f-${m}-${k}" data-m="${m}" class="flt text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 max-w-[200px]"><option value="ALL">${label}</option>${opts.map(([v,t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join('')}</select>`;
 }
+/* ===== Filter minggu: minggu kalender (Senin-Minggu) sesuai tahun & bulan terpilih, bisa pilih lebih dari satu ===== */
+const wsel = { ng: new Set(), insp: new Set() };
+function weekWidget(m) {
+  return `<details id="wk-${m}" data-m="${m}" class="relative"><summary id="wk-${m}-lbl" class="list-none cursor-pointer select-none text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 whitespace-nowrap">Semua Minggu ▾</summary><div id="wk-${m}-box" class="absolute left-0 z-30 mt-1 w-64 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl p-2 text-xs"></div></details>`;
+}
+function weekList(m) {
+  const mo = Number(fv(m, 'month')); if (!mo) return [];
+  const yv = fv(m, 'year');
+  if (yv === 'ALL') { // tahun belum dipilih: jumlah minggu = yang terbanyak di antara tahun yang ada
+    const ys = [...$(`f-${m}-year`).options].map(o => Number(o.value)).filter(Boolean);
+    const n = Math.max(0, ...ys.map(y => weekOf(new Date(y, mo, 0))));
+    return Array.from({ length: n }, (_, i) => ({ n: i + 1, txt: 'Minggu ' + (i + 1) }));
+  }
+  const y = Number(yv), last = new Date(y, mo, 0).getDate(), off = (new Date(y, mo - 1, 1).getDay() + 6) % 7, n = weekOf(new Date(y, mo, 0));
+  return Array.from({ length: n }, (_, i) => {
+    const a = Math.max(1, i * 7 - off + 1), b = Math.min(last, (i + 1) * 7 - off);
+    return { n: i + 1, txt: `Minggu ${i + 1} · ${a === b ? a : a + '–' + b} ${MS[mo - 1]}` };
+  });
+}
+function wkLabel(m) {
+  const el = $(`wk-${m}-lbl`); if (!el) return;
+  const off = fv(m, 'month') === 'ALL', set = wsel[m];
+  el.textContent = off ? 'Minggu (pilih bulan dulu) ▾' : (set.size ? 'Minggu ' + [...set].sort((a, b) => a - b).join(', ') : 'Semua Minggu') + ' ▾';
+  el.className = 'list-none select-none text-xs border rounded-lg px-3 py-1.5 whitespace-nowrap ' + (off ? 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed' : set.size ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold cursor-pointer' : 'bg-slate-50 border-slate-200 cursor-pointer');
+}
+function buildWeeks(m) {
+  const box = $(`wk-${m}-box`); if (!box) return;
+  const list = weekList(m), set = wsel[m];
+  [...set].forEach(n => { if (!list.some(w => w.n === n)) set.delete(n); });
+  box.innerHTML = list.length
+    ? `<button type="button" data-wkclear="${m}" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-100 font-semibold text-indigo-600">Semua Minggu (hapus pilihan)</button>` +
+      list.map(w => `<label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"><input type="checkbox" data-wk="${m}" value="${w.n}" ${set.has(w.n) ? 'checked' : ''} class="accent-indigo-600"><span>${w.txt}</span></label>`).join('')
+    : '';
+  if (!list.length) $(`wk-${m}`).removeAttribute('open');
+  wkLabel(m);
+}
 function shell(m) {
   const c = MOD[m], col = c.color;
   let fl = sel(m, 'year', 'Semua Tahun', []);
   if (m === 'claim') fl += sel(m, 'customer', 'Semua Customer', []) + sel(m, 'plant', 'Semua Plant', PLANTS.map(x => [x, x])) + sel(m, 'kategori', 'Semua Kategori', [['Claim','Claim'],['Informasi','Informasi']]);
   else {
-    fl += sel(m, 'month', 'Semua Bulan', MONTHS.map((x, i) => [i + 1, x])) + sel(m, 'week', 'Semua Minggu', [1,2,3,4,5].map(x => [x, 'Minggu ' + x]));
+    fl += sel(m, 'month', 'Semua Bulan', MONTHS.map((x, i) => [i + 1, x])) + weekWidget(m);
     if (m === 'insp') fl += sel(m, 'customer', 'Semua Customer', []);
     if (m === 'ng') fl += sel(m, 'divisi', 'Semua Divisi', DIVISI.map(x => [x, x]));
   }
@@ -236,6 +273,7 @@ function shell(m) {
 function buildApp() {
   $('app').innerHTML = Object.keys(MOD).map(m => `<section id="v-${m}" class="${m === 'claim' ? '' : 'hidden'} space-y-5">${shell(m)}</section>`).join('');
   $('tabs').innerHTML = Object.keys(MOD).map(m => `<button data-act="tab" data-m="${m}" id="tab-${m}" class="px-4 py-2 rounded-lg text-sm whitespace-nowrap flex items-center gap-2"><i data-lucide="${MOD[m].icon}" class="w-4 h-4"></i>${MOD[m].title}</button>`).join('');
+  ['ng', 'insp'].forEach(buildWeeks);
   icons();
 }
 function setTab(m) {
@@ -248,7 +286,10 @@ function setTab(m) {
 }
 
 /* ================= FILTER ================= */
-const fv = (m, k) => { const e = $(`f-${m}-${k}`); return e ? e.value : 'ALL'; };
+const fv = (m, k) => {
+  if (k === 'week') { const s = wsel[m]; return s && s.size && fv(m, 'month') !== 'ALL' ? [...s].sort((a, b) => a - b).join(', ') : 'ALL'; }
+  const e = $(`f-${m}-${k}`); return e ? e.value : 'ALL';
+};
 function filtered(m, tbl) {
   const c = MOD[m], y = fv(m,'year'), mo = fv(m,'month'), w = fv(m,'week'), dv = fv(m,'divisi'), cu = fv(m,'customer'), pl = fv(m,'plant'), kt = fv(m,'kategori');
   const q = ($('q-' + m).value || '').toLowerCase().trim(), dr = tbl && drill[m];
@@ -257,7 +298,7 @@ function filtered(m, tbl) {
     if ((y !== 'ALL' || mo !== 'ALL' || w !== 'ALL') && !d) return false;
     if (y !== 'ALL' && d.getFullYear() != y) return false;
     if (mo !== 'ALL' && d.getMonth() + 1 != mo) return false;
-    if (w !== 'ALL' && weekOf(d) != w) return false;
+    if (w !== 'ALL' && !wsel[m].has(weekOf(d))) return false;
     if (dv !== 'ALL' && r.divisi !== dv) return false;
     if (cu !== 'ALL' && (r.namaCustomer !== undefined ? r.namaCustomer : r.customer) !== cu) return false;
     if (pl !== 'ALL' && r.acjPlant !== pl) return false;
@@ -285,6 +326,7 @@ function popYears() {
     s.innerHTML = '<option value="ALL">Semua Tahun</option>' + arr.map(y => `<option value="${y}">${y}</option>`).join('');
     s.value = arr.map(String).includes(cur) ? cur : 'ALL';
   });
+  ['ng', 'insp'].forEach(buildWeeks);
 }
 function popCustomers(list) {
   $('dlCust').innerHTML = list.map(c => `<option value="${esc(c)}">`).join('');
@@ -679,6 +721,7 @@ function filterSummary(m) {
     const lab = sl.options[0].textContent.replace(/^Semua\s+/i, '');
     out.push([lab, sl.options[sl.selectedIndex].textContent]);
   });
+  if (fv(m, 'week') !== 'ALL') out.push(['Minggu', weekList(m).filter(w => wsel[m].has(w.n)).map(w => w.txt).join('; ')]);
   const q = ($('q-' + m).value || '').trim(); if (q) out.push(['Pencarian', q]);
   const dr = drill[m]; if (dr) out.push(['Drill', dr.value]);
   return out;
@@ -801,13 +844,24 @@ document.addEventListener('click', e => {
   else if (act === 'pg') { pg[m] += Number(d); table(m); }
   else if (act === 'cdrill') { drill[m] = null; badge(m); pg[m] = 1; table(m); if (m === 'claim') rClaim(); }
   else if (act === 'reset') {
-    document.querySelectorAll(`#v-${m} select.flt`).forEach(s => s.value = 'ALL'); $('q-' + m).value = ''; drill[m] = null; badge(m); pg[m] = 1; render(m); toast('Filter di-reset', 'info');
+    document.querySelectorAll(`#v-${m} select.flt`).forEach(s => s.value = 'ALL'); if (wsel[m]) { wsel[m].clear(); buildWeeks(m); } $('q-' + m).value = ''; drill[m] = null; badge(m); pg[m] = 1; render(m); toast('Filter di-reset', 'info');
   }
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'pvOrient') return drawPreview();
+  const wk = e.target.dataset && e.target.dataset.wk;
+  if (wk) { const n = Number(e.target.value); e.target.checked ? wsel[wk].add(n) : wsel[wk].delete(n); wkLabel(wk); pg[wk] = 1; return render(wk); }
   if (!e.target.classList.contains('flt')) return;
-  const m = e.target.dataset.m; pg[m] = 1; render(m);
+  const m = e.target.dataset.m; pg[m] = 1;
+  if (wsel[m] && (e.target.id === `f-${m}-month` || e.target.id === `f-${m}-year`)) { if (e.target.id.endsWith('-month')) wsel[m].clear(); buildWeeks(m); }
+  render(m);
+});
+document.addEventListener('click', e => {
+  const sm = e.target.closest('summary[id^="wk-"]');
+  if (sm) { const m = sm.parentElement.dataset.m; if (fv(m, 'month') === 'ALL') { e.preventDefault(); toast('Pilih bulan terlebih dahulu untuk memfilter per minggu.', 'info'); } return; }
+  const cl = e.target.closest('[data-wkclear]');
+  if (cl) { const m = cl.dataset.wkclear; wsel[m].clear(); buildWeeks(m); pg[m] = 1; render(m); return; }
+  document.querySelectorAll('details[id^="wk-"][open]').forEach(d => { if (!d.contains(e.target)) d.removeAttribute('open'); });
 });
 let qT; document.addEventListener('input', e => {
   if (!e.target.classList.contains('srch')) return;
