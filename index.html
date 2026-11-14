@@ -195,6 +195,24 @@ function sel(m, k, label, opts) {
 }
 /* ===== Filter minggu: minggu kalender (Senin-Minggu) sesuai tahun & bulan terpilih, bisa pilih lebih dari satu ===== */
 const wsel = { ng: new Set(), insp: new Set() };
+/* ===== Filter divisi: bisa pilih lebih dari satu; kosong = semua divisi ===== */
+const dsel = { ng: new Set() };
+function divWidget(m) {
+  return `<details id="dv-${m}" data-m="${m}" class="relative"><summary id="dv-${m}-lbl" class="list-none cursor-pointer select-none text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 whitespace-nowrap">Semua Divisi ▾</summary><div id="dv-${m}-box" class="absolute left-0 z-30 mt-1 w-56 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl p-2 text-xs"></div></details>`;
+}
+function divLabel(m) {
+  const el = $(`dv-${m}-lbl`); if (!el) return;
+  const set = dsel[m], list = DIVISI.filter(x => set.has(x));
+  el.textContent = (list.length ? 'Divisi: ' + list.join(', ') : 'Semua Divisi') + ' ▾';
+  el.className = 'list-none select-none text-xs border rounded-lg px-3 py-1.5 whitespace-nowrap max-w-[260px] truncate cursor-pointer ' + (list.length ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold' : 'bg-slate-50 border-slate-200');
+}
+function buildDiv(m) {
+  const box = $(`dv-${m}-box`); if (!box) return;
+  const set = dsel[m];
+  box.innerHTML = `<button type="button" data-dvclear="${m}" class="w-full text-left px-2 py-1.5 rounded-lg hover:bg-slate-100 font-semibold text-indigo-600">Semua Divisi (hapus pilihan)</button>` +
+    DIVISI.map(x => `<label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"><input type="checkbox" data-dv="${m}" value="${x}" ${set.has(x) ? 'checked' : ''} class="accent-indigo-600"><span>${x}</span></label>`).join('');
+  divLabel(m);
+}
 function weekWidget(m) {
   return `<details id="wk-${m}" data-m="${m}" class="relative"><summary id="wk-${m}-lbl" class="list-none cursor-pointer select-none text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 whitespace-nowrap">Semua Minggu ▾</summary><div id="wk-${m}-box" class="absolute left-0 z-30 mt-1 w-64 max-h-72 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl p-2 text-xs"></div></details>`;
 }
@@ -236,7 +254,7 @@ function shell(m) {
   else {
     fl += sel(m, 'month', 'Semua Bulan', MONTHS.map((x, i) => [i + 1, x])) + weekWidget(m);
     if (m === 'insp') fl += sel(m, 'customer', 'Semua Customer', []);
-    if (m === 'ng') fl += sel(m, 'divisi', 'Semua Divisi', DIVISI.map(x => [x, x]));
+    if (m === 'ng') fl += divWidget(m);
   }
   const cards = CH[m].map(([k, t, s, sp]) => {
     if (k === 'dist') return `<div class="lg:col-span-${sp} bg-white p-4 rounded-2xl border border-slate-200 shadow-sm"><h4 class="font-bold text-sm">Tabel Distribusi Pareto</h4><p class="text-xs text-slate-500 mb-2">Kontribusi kategori terhadap total defect</p><table class="w-full text-xs"><thead><tr class="text-slate-400 uppercase border-b"><th class="py-1 text-left">Kategori</th><th class="text-right">Qty</th><th class="text-right">%</th><th class="text-right">Kum.</th></tr></thead><tbody id="dist"></tbody></table></div>`;
@@ -274,6 +292,7 @@ function buildApp() {
   $('app').innerHTML = Object.keys(MOD).map(m => `<section id="v-${m}" class="${m === 'claim' ? '' : 'hidden'} space-y-5">${shell(m)}</section>`).join('');
   $('tabs').innerHTML = Object.keys(MOD).map(m => `<button data-act="tab" data-m="${m}" id="tab-${m}" class="px-4 py-2 rounded-lg text-sm whitespace-nowrap flex items-center gap-2"><i data-lucide="${MOD[m].icon}" class="w-4 h-4"></i>${MOD[m].title}</button>`).join('');
   ['ng', 'insp'].forEach(buildWeeks);
+  buildDiv('ng');
   icons();
 }
 function setTab(m) {
@@ -287,11 +306,12 @@ function setTab(m) {
 
 /* ================= FILTER ================= */
 const fv = (m, k) => {
+  if (k === 'divisi') { const s = dsel[m]; return s && s.size ? DIVISI.filter(x => s.has(x)).join(', ') : 'ALL'; }
   if (k === 'week') { const s = wsel[m]; return s && s.size && fv(m, 'month') !== 'ALL' ? [...s].sort((a, b) => a - b).join(', ') : 'ALL'; }
   const e = $(`f-${m}-${k}`); return e ? e.value : 'ALL';
 };
 function filtered(m, tbl) {
-  const c = MOD[m], y = fv(m,'year'), mo = fv(m,'month'), w = fv(m,'week'), dv = fv(m,'divisi'), cu = fv(m,'customer'), pl = fv(m,'plant'), kt = fv(m,'kategori');
+  const c = MOD[m], y = fv(m,'year'), mo = fv(m,'month'), w = fv(m,'week'), cu = fv(m,'customer'), pl = fv(m,'plant'), kt = fv(m,'kategori');
   const q = ($('q-' + m).value || '').toLowerCase().trim(), dr = tbl && drill[m];
   return D[m].filter(r => {
     const d = pd(r[c.dk]);
@@ -299,7 +319,7 @@ function filtered(m, tbl) {
     if (y !== 'ALL' && d.getFullYear() != y) return false;
     if (mo !== 'ALL' && d.getMonth() + 1 != mo) return false;
     if (w !== 'ALL' && !wsel[m].has(weekOf(d))) return false;
-    if (dv !== 'ALL' && r.divisi !== dv) return false;
+    if (dsel[m] && dsel[m].size && !dsel[m].has(r.divisi)) return false;
     if (cu !== 'ALL' && (r.namaCustomer !== undefined ? r.namaCustomer : r.customer) !== cu) return false;
     if (pl !== 'ALL' && r.acjPlant !== pl) return false;
     if (kt !== 'ALL' && (r.kategoriClaim || 'Claim') !== kt) return false;
@@ -409,7 +429,7 @@ function cfgYearTrend(year, divisi, onMonth) {
   const colors = { Bor:'#3b82f6', CNC:'#6366f1', Cutting:'#06b6d4', Harden:'#ef4444', Hexagon:'#f59e0b', Punch:'#10b981', Rolling:'#8b5cf6', Turret:'#ec4899', Lainnya:'#94a3b8' };
   const by = {}, tot = new Array(12).fill(0);
   D.ng.forEach(r => {
-    const d = pd(r.tanggal); if (!d || d.getFullYear() !== year || (divisi !== 'ALL' && r.divisi !== divisi)) return;
+    const d = pd(r.tanggal); if (!d || d.getFullYear() !== year || (divisi && divisi.size && !divisi.has(r.divisi))) return;
     const dv = colors[r.divisi] ? r.divisi : 'Lainnya'; (by[dv] = by[dv] || new Array(12).fill(0))[d.getMonth()] += num(r.qtyNG); tot[d.getMonth()] += num(r.qtyNG);
   });
   const ds = [{ type: 'line', label: 'Total Qty NG', data: tot, borderColor: '#0f172a', borderWidth: 2.5, backgroundColor: 'transparent', pointRadius: 3, tension: .3, order: 0 }];
@@ -456,7 +476,7 @@ function rNG() {
   const parts = sum(d, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG));
   mk('ng-pareto', cfgPareto(parts, 10, '#2563eb', '#ef4444', 'Qty NG (Pcs)', v => setDrill('ng', 'namaPart', v)).cfg);
   mk('ng-pie', cfgPie(parts, v => setDrill('ng', 'namaPart', v)).cfg);
-  mk('ng-trend', cfgYearTrend(ngYear(), fv('ng', 'divisi'), i => { $('f-ng-month').value = String(i + 1); pg.ng = 1; render('ng'); toast('Filter bulan: ' + MONTHS[i], 'info'); }));
+  mk('ng-trend', cfgYearTrend(ngYear(), dsel.ng, i => { $('f-ng-month').value = String(i + 1); pg.ng = 1; render('ng'); toast('Filter bulan: ' + MONTHS[i], 'info'); }));
   rNGMulti(d);
 }
 function rNGMulti(d) {
@@ -615,11 +635,13 @@ function execReport() {
         doc.setDrawColor(226, 232, 240); doc.line(M, 98, W - M, 98);
       };
       const banner = (y, list) => {
-        doc.setFillColor(241, 245, 249); doc.roundedRect(M, y, CW, 20, 3, 3, 'F');
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(15, 23, 42); doc.text('FILTER ANALISIS AKTIF:', M + 8, y + 13);
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(51, 65, 85);
-        const t = list.map(([k, v]) => `${k}: [ ${v} ]`).join('   |   '); doc.text(t.length > 170 ? t.slice(0, 167) + '...' : t, M + 112, y + 13);
-        return y + 28;
+        const t = list.map(([k, v]) => `${k}: [ ${v} ]`).join('   |   ');
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+        const ls = doc.splitTextToSize(t, CW - 124), h = Math.max(20, 11 + ls.length * 9);
+        doc.setFillColor(241, 245, 249); doc.roundedRect(M, y, CW, h, 3, 3, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(15, 23, 42); doc.text('FILTER ANALISIS AKTIF:', M + 8, y + 13);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(51, 65, 85); doc.text(ls, M + 112, y + 13);
+        return y + h + 8;
       };
       const kbox = (x, y, w, label, val, col, sub) => {
         doc.setFillColor(248, 250, 252); doc.roundedRect(x, y, w, 36, 4, 4, 'F'); doc.setDrawColor(226, 232, 240); doc.roundedRect(x, y, w, 36, 4, 4, 'S');
@@ -638,6 +660,31 @@ function execReport() {
         });
       };
       const lbl = (v, all, f) => v === 'ALL' ? all : (f ? f(v) : v);
+      // Log part: 3 part NG tertinggi (sama dengan 3 teratas pada pie chart), maks. 10 baris per part, urut Qty NG terbesar
+      const TOPN = 3, LOGMAX = 10;
+      const partLog = (data, pieItems, fallback, head, widths, rowFn, title, badge, bannerList) => {
+        doc.addPage(); header(title, badge);
+        let y0 = banner(104, bannerList);
+        const tops = pieItems.filter(it => it.label !== 'Part Lainnya').slice(0, TOPN);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(71, 85, 105);
+        doc.text(`Log ${TOPN} part NG tertinggi (sesuai pie chart) - maksimal ${LOGMAX} data per part, diurutkan Qty NG terbesar pada periode/filter aktif.`, M, y0 + 4);
+        const body = [];
+        tops.forEach((it, i) => {
+          const all = data.filter(r => (r.namaPart || fallback) === it.label && num(r.qtyNG) > 0)
+            .sort((a, b) => num(b.qtyNG) - num(a.qtyNG) || String(b.tanggal || '').localeCompare(String(a.tanggal || '')));
+          body.push([{ content: `#${i + 1}  ${it.label}   |   Total ${fmt(it.qty)} pcs NG (${it.pct}%)   |   Menampilkan ${Math.min(all.length, LOGMAX)} dari ${all.length} data`, colSpan: head.length, styles: { fillColor: rgb(it.color), textColor: 255, fontStyle: 'bold', fontSize: 7.5, halign: 'left' } }]);
+          all.slice(0, LOGMAX).forEach((r, j) => body.push(rowFn(r, j + 1)));
+        });
+        if (!tops.length) body.push([{ content: 'Tidak ada data NG pada filter ini', colSpan: head.length, styles: { halign: 'center' } }]);
+        const cs = {}, fixed = widths.slice(0, -1).reduce((a, w) => a + w[0], 0); widths.forEach((w, i) => { cs[i] = { cellWidth: i === widths.length - 1 ? CW - fixed : w[0], halign: w[1] || 'left' }; });
+        const p0 = doc.internal.getCurrentPageInfo().pageNumber;
+        doc.autoTable({ startY: y0 + 10, margin: { left: M, right: M, top: 106, bottom: 30 }, theme: 'grid', tableWidth: CW,
+          styles: { fontSize: 6.5, cellPadding: 1.8, overflow: 'ellipsize', lineColor: [226, 232, 240], lineWidth: 0.4 },
+          headStyles: { fillColor: [15, 23, 42], textColor: 255 }, columnStyles: cs, head: [head], body,
+          didDrawPage: d => { if (d.pageNumber > p0) header(title + ' (lanjutan)', badge); } });
+        return doc.lastAutoTable.finalY;
+      };
+      const D10 = v => String(v || '-').slice(0, 10);
 
       // ---- HALAMAN 1: CLAIM ----
       const dc = filtered('claim');
@@ -666,7 +713,7 @@ function execReport() {
       const td = Object.keys(dv).sort((a, b) => dv[b] - dv[a])[0], tf = Object.keys(df).sort((a, b) => df[b] - df[a])[0];
       y = kRow(y, [['TOTAL DEFECT NG', fmt(dn.reduce((a, n) => a + num(n.qtyNG), 0)) + ' Pcs', [225,29,72]], ['TOP DIVISI DEFECT', td ? `${td} (${fmt(dv[td])} pcs)` : '-', [217,119,6]], ['TOP JENIS PROBLEM', tf ? `${tf} (${fmt(df[tf])} pcs)` : '-', [79,70,229]]]);
       const yr = ngYear(), TW = 500, TH = H - y - 60;
-      doc.addImage(snap(cfgYearTrend(yr, fv('ng', 'divisi')), 1000, Math.round(1000 * TH / TW), `Tren Jumlah NG Tahun ${yr} (Akumulasi Bulanan per Divisi)`), 'PNG', M, y, TW, TH);
+      doc.addImage(snap(cfgYearTrend(yr, dsel.ng), 1000, Math.round(1000 * TH / TW), `Tren Jumlah NG Tahun ${yr} (Akumulasi Bulanan per Divisi)`), 'PNG', M, y, TW, TH);
       const rx = M + TW + 12, rw = CW - TW - 12, pie = cfgPie(sum(dn, r => r.namaPart || 'Tanpa Nama', r => num(r.qtyNG)));
       pie.cfg.options.plugins.legend = { display: false };
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42); doc.text('Top 5 Part NG Tertinggi', rx, y + 8);
@@ -682,17 +729,25 @@ function execReport() {
         doc.addImage(snap(cfg, 770, Math.round(770 * PH / HALF), t), 'PNG', M + (i % 2) * (HALF + 12), y + Math.floor(i / 2) * (PH + 12), HALF, PH);
       });
 
+      // ---- HALAMAN 3b: LOG PART NG TERTINGGI (NG INTERNAL) ----
+      partLog(dn, pie.items, 'Tanpa Nama', ['No', 'Tanggal', 'ID NG', 'Qty NG', 'Jenis Defect', 'Faktor Penyebab', 'Divisi', 'No Mesin', 'Operator'],
+        [[24, 'center'], [58], [62], [40, 'right'], [148], [190], [58], [68], [137]],
+        (r, n) => [n, D10(r.tanggal), r.idNG || '-', fmt(r.qtyNG), r.jenisNG || '-', r.faktorPenyebab || '-', r.divisi || '-', r.noMesin || '-', r.namaOperator || '-'],
+        '2.2 LOG PART NG TERTINGGI - DATABASE NG INTERNAL PRODUKSI', 'BAGIAN 2 - LOG NG',
+        [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')], ...($('q-ng').value ? [['Pencarian', $('q-ng').value]] : [])]);
+
       // ---- HALAMAN 4: INSPECTION + PENGESAHAN ----
       const di = filtered('insp'), T = k => di.reduce((a, r) => a + num(r[k]), 0), tc = T('totalCheck'), pc = v => `${tc ? (v / tc * 100).toFixed(2) : '0.00'}%`;
       doc.addPage(); header('3. MONITORING DATA INSPECTION & PENGESAHAN', 'BAGIAN 3 - INSPECTION');
       y = banner(104, [['Tahun', lbl(fv('insp','year'), 'Semua Tahun')], ['Bulan', lbl(fv('insp','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('insp','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Customer', lbl(fv('insp','customer'), 'Semua Customer')], ...($('q-insp').value ? [['Pencarian', $('q-insp').value]] : [])]);
       y = kRow(y, [['TOTAL PART CHECK', fmt(tc) + ' Pcs', [15,23,42], '100%'], ['PART OK (LOLOS)', fmt(T('qtyOK')) + ' Pcs', [5,150,105], pc(T('qtyOK'))], ['PART NG (DEFECT)', fmt(T('qtyNG')) + ' Pcs', [225,29,72], pc(T('qtyNG'))], ['PART REPAIR', fmt(T('qtyRepair')) + ' Pcs', [217,119,6], pc(T('qtyRepair'))]]);
-      const ip = sum(di, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG)), IH = 175;
+      const ip = sum(di, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG)), IH = 230;
       doc.addImage(snap(cfgPareto(ip, 8, '#ef4444', '#4f46e5', 'Qty NG (Pcs)').cfg, 770, Math.round(770 * IH / HALF), 'Pareto Chart NG Tertinggi Data Inspection (80/20)'), 'PNG', M, y, HALF, IH);
       const ipie = cfgPie(ip); ipie.cfg.options.plugins.legend = { display: false };
       const rx2 = M + HALF + 12; doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42); doc.text('Top 5 Part NG Tertinggi Inspeksi', rx2, y + 8);
       doc.addImage(snap(ipie.cfg, 400, 400), 'PNG', rx2, y + 14, IH - 14, IH - 14);
       legend(rx2 + IH - 6, y + 14, HALF - IH + 6, IH - 14, 'Rincian Part', ipie.items);
+      // ---- LEMBAR PENGESAHAN (tetap di halaman chart Inspection; log part menjadi lampiran sesudahnya) ----
       const sy = H - 120, cw3 = CW / 3;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(15, 23, 42); doc.text('LEMBAR VERIFIKASI & PENGESAHAN LAPORAN AUDIT MUTU:', M, sy - 8);
       ['Dipersiapkan Oleh:', 'Diverifikasi Oleh:', 'Disetujui Oleh:'].forEach((t, i) => {
@@ -700,6 +755,13 @@ function execReport() {
         doc.setFontSize(7); doc.setTextColor(71, 85, 105); doc.text(t, sx + 8, sy + 12); doc.line(sx + 10, sy + 56, sx + cw3 - 16, sy + 56);
         doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 116, 139); doc.text(['QC Inspector', 'Kabag QA', 'Management'][i], sx + 8, sy + 68); doc.setFont('helvetica', 'bold');
       });
+
+      // ---- HALAMAN 4b: LOG PART NG TERTINGGI (INSPECTION) ----
+      const inspBanner = [['Tahun', lbl(fv('insp','year'), 'Semua Tahun')], ['Bulan', lbl(fv('insp','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('insp','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Customer', lbl(fv('insp','customer'), 'Semua Customer')], ...($('q-insp').value ? [['Pencarian', $('q-insp').value]] : [])];
+      partLog(di, ipie.items, 'Tanpa Part', ['No', 'Tanggal', 'Customer', 'Proses', 'Qty NG', 'Qty Repair', 'Total Check', 'Operator', 'Keterangan'],
+        [[24, 'center'], [58], [140], [110], [40, 'right'], [44, 'right'], [48, 'right'], [110], [211]],
+        (r, n) => [n, D10(r.tanggal), r.customer || '-', r.proses || '-', fmt(r.qtyNG), fmt(r.qtyRepair), fmt(r.totalCheck), r.operator || '-', r.keterangan || '-'],
+        '3.1 LOG PART NG TERTINGGI - MONITORING DATA INSPECTION (LAMPIRAN)', 'BAGIAN 3 - INSPECTION', inspBanner);
 
       // Footer semua halaman
       const n = doc.internal.getNumberOfPages();
@@ -721,6 +783,7 @@ function filterSummary(m) {
     const lab = sl.options[0].textContent.replace(/^Semua\s+/i, '');
     out.push([lab, sl.options[sl.selectedIndex].textContent]);
   });
+  if (fv(m, 'divisi') !== 'ALL') out.push(['Divisi', fv(m, 'divisi')]);
   if (fv(m, 'week') !== 'ALL') out.push(['Minggu', weekList(m).filter(w => wsel[m].has(w.n)).map(w => w.txt).join('; ')]);
   const q = ($('q-' + m).value || '').trim(); if (q) out.push(['Pencarian', q]);
   const dr = drill[m]; if (dr) out.push(['Drill', dr.value]);
@@ -844,12 +907,14 @@ document.addEventListener('click', e => {
   else if (act === 'pg') { pg[m] += Number(d); table(m); }
   else if (act === 'cdrill') { drill[m] = null; badge(m); pg[m] = 1; table(m); if (m === 'claim') rClaim(); }
   else if (act === 'reset') {
-    document.querySelectorAll(`#v-${m} select.flt`).forEach(s => s.value = 'ALL'); if (wsel[m]) { wsel[m].clear(); buildWeeks(m); } $('q-' + m).value = ''; drill[m] = null; badge(m); pg[m] = 1; render(m); toast('Filter di-reset', 'info');
+    document.querySelectorAll(`#v-${m} select.flt`).forEach(s => s.value = 'ALL'); if (wsel[m]) { wsel[m].clear(); buildWeeks(m); } if (dsel[m]) { dsel[m].clear(); buildDiv(m); } $('q-' + m).value = ''; drill[m] = null; badge(m); pg[m] = 1; render(m); toast('Filter di-reset', 'info');
   }
 });
 document.addEventListener('change', e => {
   if (e.target.id === 'pvOrient') return drawPreview();
   const wk = e.target.dataset && e.target.dataset.wk;
+  const dvk = e.target.dataset && e.target.dataset.dv;
+  if (dvk) { const v = e.target.value; e.target.checked ? dsel[dvk].add(v) : dsel[dvk].delete(v); divLabel(dvk); pg[dvk] = 1; return render(dvk); }
   if (wk) { const n = Number(e.target.value); e.target.checked ? wsel[wk].add(n) : wsel[wk].delete(n); wkLabel(wk); pg[wk] = 1; return render(wk); }
   if (!e.target.classList.contains('flt')) return;
   const m = e.target.dataset.m; pg[m] = 1;
@@ -861,7 +926,9 @@ document.addEventListener('click', e => {
   if (sm) { const m = sm.parentElement.dataset.m; if (fv(m, 'month') === 'ALL') { e.preventDefault(); toast('Pilih bulan terlebih dahulu untuk memfilter per minggu.', 'info'); } return; }
   const cl = e.target.closest('[data-wkclear]');
   if (cl) { const m = cl.dataset.wkclear; wsel[m].clear(); buildWeeks(m); pg[m] = 1; render(m); return; }
-  document.querySelectorAll('details[id^="wk-"][open]').forEach(d => { if (!d.contains(e.target)) d.removeAttribute('open'); });
+  const dc = e.target.closest('[data-dvclear]');
+  if (dc) { const m = dc.dataset.dvclear; dsel[m].clear(); buildDiv(m); pg[m] = 1; render(m); return; }
+  document.querySelectorAll('details[id^="wk-"][open], details[id^="dv-"][open]').forEach(d => { if (!d.contains(e.target)) d.removeAttribute('open'); });
 });
 let qT; document.addEventListener('input', e => {
   if (!e.target.classList.contains('srch')) return;
