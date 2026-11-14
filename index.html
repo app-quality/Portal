@@ -276,7 +276,7 @@ function shell(m) {
     <div><h2 class="text-xl font-extrabold">${c.title}</h2><p class="text-xs text-slate-500">Dashboard, analisis Pareto & log register</p></div>
     <div class="flex items-center gap-2 flex-wrap">
       <button data-act="add" data-m="${m}" class="adm hidden px-4 py-2.5 bg-${col}-600 hover:bg-${col}-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2"><i data-lucide="plus-circle" class="w-4 h-4"></i>Input Baru</button>
-      <button data-act="exp" data-m="${m}" data-f="excel" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="sheet" class="w-4 h-4 text-emerald-600"></i>Excel</button>
+      <button data-act="exp" data-m="${m}" data-f="excel" class="adm hidden px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="sheet" class="w-4 h-4 text-emerald-600"></i>Excel</button>
       <button data-act="exp" data-m="${m}" data-f="pdf" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="file-text" class="w-4 h-4 text-rose-600"></i>PDF</button>
       <button data-act="preview" data-m="${m}" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="eye" class="w-4 h-4 text-sky-600"></i>Print Preview</button>
       <button data-act="print" data-m="${m}" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5"><i data-lucide="printer" class="w-4 h-4 text-slate-700"></i>Print</button>
@@ -595,6 +595,7 @@ async function openDoc(url) {
 const cellVal = (x, r) => x[2] === 'n' || x[2] === 'p' ? num(r[x[1]]) : x[2] === 'b' ? (r[x[1]] ? 'Ada' : '-') : (r[x[1]] || '-');
 const by = () => S.user ? `${S.user.fullName} (${S.user.role})` : 'System';
 function exportData(m, f) {
+  if (f === 'excel' && (!S.user || S.user.role !== 'Admin')) return toast('Export Excel hanya untuk Admin!', 'error');
   const c = MOD[m], rows = filtered(m, true);
   if (!rows.length) return toast('Tidak ada data untuk diexport', 'error');
   const stamp = today().replace(/-/g, ''), now = new Date().toLocaleString('id-ID');
