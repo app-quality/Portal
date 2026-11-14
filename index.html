@@ -720,7 +720,14 @@ function execReport() {
       const ps = Math.min(130, TH * 0.5); doc.addImage(snap(pie.cfg, 400, 400), 'PNG', rx + (rw - ps) / 2, y + 14, ps, ps);
       legend(rx, y + ps + 20, rw, TH - ps - 20, 'Rincian Part NG Kritis', pie.items);
 
-      // ---- HALAMAN 3: PARETO MULTI-DIMENSI (gabungan, lalu per divisi) ----
+      // ---- HALAMAN 2b: LOG PART NG TERTINGGI (NG INTERNAL) ----
+      partLog(dn, pie.items, 'Tanpa Nama', ['No', 'Tanggal', 'ID NG', 'Qty NG', 'Jenis Defect', 'Faktor Penyebab', 'Divisi', 'No Mesin', 'Operator'],
+        [[24, 'center'], [58], [62], [40, 'right'], [148], [190], [58], [68], [137]],
+        (r, n) => [n, D10(r.tanggal), r.idNG || '-', fmt(r.qtyNG), r.jenisNG || '-', r.faktorPenyebab || '-', r.divisi || '-', r.noMesin || '-', r.namaOperator || '-'],
+        '2.1 LOG PART NG TERTINGGI - DATABASE NG INTERNAL PRODUKSI', 'BAGIAN 2 - LOG NG',
+        [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')], ...($('q-ng').value ? [['Pencarian', $('q-ng').value]] : [])]);
+
+      // ---- HALAMAN 2c: PARETO MULTI-DIMENSI (gabungan, lalu per divisi) ----
       const ngBase = [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)]];
       const paretoPage = (title, data, list, suffix) => {
         doc.addPage(); header(title, 'BAGIAN 2 - PARETO NG');
@@ -730,19 +737,12 @@ function execReport() {
           doc.addImage(snap(cfg, 770, Math.round(770 * PH / HALF), t + suffix), 'PNG', M + (i % 2) * (HALF + 12), yy + Math.floor(i / 2) * (PH + 12), HALF, PH);
         });
       };
-      paretoPage('2.1 EVALUASI PARETO MULTI-DIMENSI DEFECT NG (GABUNGAN DIVISI)', dn, [...ngBase, ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')]], '');
+      paretoPage('2.2 EVALUASI PARETO MULTI-DIMENSI DEFECT NG (GABUNGAN DIVISI)', dn, [...ngBase, ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')]], '');
       const divPick = DIVISI.filter(x => dsel.ng.has(x)), divList = divPick.length ? divPick : DIVISI.filter(x => dn.some(r => r.divisi === x));
       divList.forEach((dvn, k) => {
         const dd = dn.filter(r => r.divisi === dvn);
-        paretoPage(`2.1.${k + 1} EVALUASI PARETO MULTI-DIMENSI DEFECT NG - DIVISI ${dvn.toUpperCase()}`, dd, [...ngBase, ['Divisi', dvn], ['Total NG', fmt(dd.reduce((a, r) => a + num(r.qtyNG), 0)) + ' Pcs']], ' - ' + dvn);
+        paretoPage(`2.2.${k + 1} EVALUASI PARETO MULTI-DIMENSI DEFECT NG - DIVISI ${dvn.toUpperCase()}`, dd, [...ngBase, ['Divisi', dvn], ['Total NG', fmt(dd.reduce((a, r) => a + num(r.qtyNG), 0)) + ' Pcs']], ' - ' + dvn);
       });
-
-      // ---- HALAMAN 3b: LOG PART NG TERTINGGI (NG INTERNAL) ----
-      partLog(dn, pie.items, 'Tanpa Nama', ['No', 'Tanggal', 'ID NG', 'Qty NG', 'Jenis Defect', 'Faktor Penyebab', 'Divisi', 'No Mesin', 'Operator'],
-        [[24, 'center'], [58], [62], [40, 'right'], [148], [190], [58], [68], [137]],
-        (r, n) => [n, D10(r.tanggal), r.idNG || '-', fmt(r.qtyNG), r.jenisNG || '-', r.faktorPenyebab || '-', r.divisi || '-', r.noMesin || '-', r.namaOperator || '-'],
-        '2.2 LOG PART NG TERTINGGI - DATABASE NG INTERNAL PRODUKSI', 'BAGIAN 2 - LOG NG',
-        [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')], ...($('q-ng').value ? [['Pencarian', $('q-ng').value]] : [])]);
 
       // ---- HALAMAN 4: INSPECTION + PENGESAHAN ----
       const di = filtered('insp'), T = k => di.reduce((a, r) => a + num(r[k]), 0), tc = T('totalCheck'), pc = v => `${tc ? (v / tc * 100).toFixed(2) : '0.00'}%`;
