@@ -45,7 +45,18 @@ summary::-webkit-details-marker{display:none}
       <button id="mb" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl">Verifikasi</button>
       <button type="button" id="mback" class="w-full text-xs text-slate-500 hover:text-slate-800 underline">Kembali ke login</button>
     </div>
+    <button type="button" id="secBtn" class="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-indigo-600 pt-1"><i data-lucide="shield-check" class="w-4 h-4"></i>Status Keamanan Situs</button>
   </form>
+</div>
+
+<!-- PANEL STATUS KEAMANAN (publik) -->
+<div id="secModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4">
+    <div class="flex items-center justify-between"><h3 class="font-bold text-base flex items-center gap-2"><i data-lucide="shield-check" class="w-5 h-5 text-indigo-600"></i>Status Keamanan Situs</h3>
+      <button type="button" id="secClose" class="text-slate-400 hover:text-slate-700 text-xl leading-none" aria-label="Tutup">&times;</button></div>
+    <div id="secBody" class="space-y-2 text-sm"></div>
+    <p class="text-[11px] text-slate-400">Informasi ini diambil langsung dari sistem dan hasil pemindaian pihak ketiga pada waktu yang tertera. Ini bukan jaminan mutlak bebas dari risiko.</p>
+  </div>
 </div>
 
 <!-- HEADER -->
@@ -178,7 +189,7 @@ const tsReset = () => { try { if (window.turnstile && tsId !== null) turnstile.r
 
 function call(fn, ...args) {
   if (/GANTI_DENGAN/.test(API_URL)) return Promise.reject(new Error('API_URL di index.html belum diisi dengan URL Web App Apps Script.'));
-  const payload = { fn, args: (fn === 'apiLogin' || fn === 'apiVerifyMfa') ? args : [S.token, ...args] };
+  const payload = { fn, args: (fn === 'apiLogin' || fn === 'apiVerifyMfa' || fn === 'apiSecurityStatus') ? args : [S.token, ...args] };
   // text/plain agar tidak memicu CORS preflight (Apps Script tidak mendukung OPTIONS)
   return fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' })
     .then(res => { if (!res.ok) throw new Error('Server error ' + res.status); return res.json(); })
@@ -861,10 +872,46 @@ function directPrint(m) {
   document.body.appendChild(fr);
 }
 
+/* ================= PANEL STATUS KEAMANAN ================= */
+function secRow(state, title, sub) {
+  const c = state === 'ok' ? 'emerald' : state === 'bad' ? 'rose' : state === 'warn' ? 'amber' : 'slate';
+  const ic = state === 'ok' ? 'check-circle-2' : state === 'bad' ? 'alert-triangle' : state === 'warn' ? 'alert-circle' : 'clock';
+  return `<div class="flex gap-3 p-3 rounded-xl bg-${c}-50 border border-${c}-200"><i data-lucide="${ic}" class="w-5 h-5 text-${c}-600 shrink-0 mt-0.5"></i><div><div class="font-semibold text-${c}-800">${title}</div><div class="text-xs text-slate-600">${sub}</div></div></div>`;
+}
+async function openSecurity() {
+  $('secModal').classList.remove('hidden');
+  const rows = [];
+  const https = location.protocol === 'https:' && /^https:/.test(API_URL);
+  rows.push(https ? secRow('ok', 'Koneksi terenkripsi (HTTPS)', 'Data antara browser Anda dan server dienkripsi.') : secRow('bad', 'Koneksi TIDAK terenkripsi', 'Jangan masukkan password di halaman ini.'));
+  $('secBody').innerHTML = rows.join('') + secRow('none', 'Memuat status lainnya…', '');
+  icons();
+  let r = null;
+  try { r = await call('apiSecurityStatus'); } catch (e) {}
+  if (!r || !r.success) {
+    $('secBody').innerHTML = rows.join('') + secRow('none', 'Status server belum dapat dimuat', 'Coba lagi beberapa saat.'); icons(); return;
+  }
+  if (r.antiBot) rows.push(secRow('ok', 'Perlindungan login dari bot', 'Login dilindungi verifikasi Cloudflare Turnstile.'));
+  rows.push(secRow('ok', 'Akses per peran & pencatatan aktivitas', 'Hanya Admin yang dapat mengubah data. Aktivitas login dicatat (audit log).'));
+  if (r.mfaAdmin) rows.push(secRow('ok', 'Verifikasi 2 langkah untuk Admin', 'Akun Admin wajib kode dari aplikasi authenticator.'));
+  if (!r.vt) rows.push(secRow('none', 'Pemindaian VirusTotal', 'Belum ada hasil pemindaian.'));
+  else {
+    const v = r.vt, d = new Date(v.at).toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' });
+    const lnk = ` <a href="${esc(v.link)}" target="_blank" rel="noopener noreferrer" class="underline text-indigo-600">Lihat laporan asli</a>`;
+    if (v.malicious > 0) rows.push(secRow('bad', `VirusTotal: ${v.malicious} mesin mendeteksi ancaman`, `Dari ${v.total} mesin, dipindai ${d}.${lnk}`));
+    else if (v.suspicious > 0) rows.push(secRow('warn', `VirusTotal: ${v.suspicious} mesin menandai mencurigakan`, `Dari ${v.total} mesin, dipindai ${d}.${lnk}`));
+    else rows.push(secRow('ok', 'VirusTotal: tidak ada deteksi', `Dipindai oleh ${v.total} mesin pada ${d}.${lnk}`));
+  }
+  $('secBody').innerHTML = rows.join(''); icons();
+}
+$('secBtn').addEventListener('click', openSecurity);
+$('secClose').addEventListener('click', () => $('secModal').classList.add('hidden'));
+$('secModal').addEventListener('click', e => { if (e.target.id === 'secModal') $('secModal').classList.add('hidden'); });
+
 /* ================= SESI & SYNC ================= */
 function enter(user, token, fresh) {
   S.user = user; S.token = token;
   try { sessionStorage.setItem('acj_sess', JSON.stringify({ user, token })); } catch (e) {}
+  $('secModal').classList.add('hidden');
   $('login').classList.add('hidden'); $('hdr').classList.remove('hidden'); $('app').classList.remove('hidden');
   $('role').textContent = `${user.fullName} (${user.role})`;
   $('role').className = 'text-[10px] font-bold px-2 py-0.5 rounded-full uppercase truncate ' + (user.role === 'Admin' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800');
