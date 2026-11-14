@@ -679,7 +679,7 @@ function execReport() {
         const cs = {}, fixed = widths.slice(0, -1).reduce((a, w) => a + w[0], 0); widths.forEach((w, i) => { cs[i] = { cellWidth: i === widths.length - 1 ? CW - fixed : w[0], halign: w[1] || 'left' }; });
         const p0 = doc.internal.getCurrentPageInfo().pageNumber;
         doc.autoTable({ startY: y0 + 10, margin: { left: M, right: M, top: 106, bottom: 30 }, theme: 'grid', tableWidth: CW,
-          styles: { fontSize: 6.5, cellPadding: 1.8, overflow: 'ellipsize', lineColor: [226, 232, 240], lineWidth: 0.4 },
+          styles: { fontSize: 6.3, cellPadding: 1.4, overflow: 'ellipsize', lineColor: [226, 232, 240], lineWidth: 0.4 },
           headStyles: { fillColor: [15, 23, 42], textColor: 255 }, columnStyles: cs, head: [head], body,
           didDrawPage: d => { if (d.pageNumber > p0) header(title + ' (lanjutan)', badge); } });
         return doc.lastAutoTable.finalY;
@@ -720,13 +720,21 @@ function execReport() {
       const ps = Math.min(130, TH * 0.5); doc.addImage(snap(pie.cfg, 400, 400), 'PNG', rx + (rw - ps) / 2, y + 14, ps, ps);
       legend(rx, y + ps + 20, rw, TH - ps - 20, 'Rincian Part NG Kritis', pie.items);
 
-      // ---- HALAMAN 3: PARETO MULTI-DIMENSI ----
-      doc.addPage(); header('2.1 EVALUASI PARETO MULTI-DIMENSI DEFECT NG', 'BAGIAN 2 - PARETO NG');
-      y = banner(104, [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')]]);
-      const PH = (H - y - 40) / 2 - 6;
-      [['namaPart','1. Pareto by Jumlah Part NG'], ['jenisNG','2. Pareto by Jenis Problem NG'], ['namaOperator','3. Pareto by Nama Operator'], ['noMesin','4. Pareto by Nomor Mesin']].forEach(([f, t], i) => {
-        const cfg = cfgPareto(sum(dn, r => r[f] || 'Tidak diisi', r => num(r.qtyNG)), 8, '#2563eb', '#ef4444', 'Qty NG').cfg;
-        doc.addImage(snap(cfg, 770, Math.round(770 * PH / HALF), t), 'PNG', M + (i % 2) * (HALF + 12), y + Math.floor(i / 2) * (PH + 12), HALF, PH);
+      // ---- HALAMAN 3: PARETO MULTI-DIMENSI (gabungan, lalu per divisi) ----
+      const ngBase = [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)]];
+      const paretoPage = (title, data, list, suffix) => {
+        doc.addPage(); header(title, 'BAGIAN 2 - PARETO NG');
+        const yy = banner(104, list), PH = (H - yy - 40) / 2 - 6;
+        [['namaPart','1. Pareto by Jumlah Part NG'], ['jenisNG','2. Pareto by Jenis Problem NG'], ['namaOperator','3. Pareto by Nama Operator'], ['noMesin','4. Pareto by Nomor Mesin']].forEach(([f, t], i) => {
+          const cfg = cfgPareto(sum(data, r => r[f] || 'Tidak diisi', r => num(r.qtyNG)), 8, '#2563eb', '#ef4444', 'Qty NG').cfg;
+          doc.addImage(snap(cfg, 770, Math.round(770 * PH / HALF), t + suffix), 'PNG', M + (i % 2) * (HALF + 12), yy + Math.floor(i / 2) * (PH + 12), HALF, PH);
+        });
+      };
+      paretoPage('2.1 EVALUASI PARETO MULTI-DIMENSI DEFECT NG (GABUNGAN DIVISI)', dn, [...ngBase, ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')]], '');
+      const divPick = DIVISI.filter(x => dsel.ng.has(x)), divList = divPick.length ? divPick : DIVISI.filter(x => dn.some(r => r.divisi === x));
+      divList.forEach((dvn, k) => {
+        const dd = dn.filter(r => r.divisi === dvn);
+        paretoPage(`2.1.${k + 1} EVALUASI PARETO MULTI-DIMENSI DEFECT NG - DIVISI ${dvn.toUpperCase()}`, dd, [...ngBase, ['Divisi', dvn], ['Total NG', fmt(dd.reduce((a, r) => a + num(r.qtyNG), 0)) + ' Pcs']], ' - ' + dvn);
       });
 
       // ---- HALAMAN 3b: LOG PART NG TERTINGGI (NG INTERNAL) ----
@@ -747,21 +755,22 @@ function execReport() {
       const rx2 = M + HALF + 12; doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42); doc.text('Top 5 Part NG Tertinggi Inspeksi', rx2, y + 8);
       doc.addImage(snap(ipie.cfg, 400, 400), 'PNG', rx2, y + 14, IH - 14, IH - 14);
       legend(rx2 + IH - 6, y + 14, HALF - IH + 6, IH - 14, 'Rincian Part', ipie.items);
-      // ---- LEMBAR PENGESAHAN (tetap di halaman chart Inspection; log part menjadi lampiran sesudahnya) ----
-      const sy = H - 120, cw3 = CW / 3;
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(15, 23, 42); doc.text('LEMBAR VERIFIKASI & PENGESAHAN LAPORAN AUDIT MUTU:', M, sy - 8);
-      ['Dipersiapkan Oleh:', 'Diverifikasi Oleh:', 'Disetujui Oleh:'].forEach((t, i) => {
-        const sx = M + i * cw3; doc.setDrawColor(203, 213, 225); doc.rect(sx, sy, cw3 - 6, 80, 'S');
-        doc.setFontSize(7); doc.setTextColor(71, 85, 105); doc.text(t, sx + 8, sy + 12); doc.line(sx + 10, sy + 56, sx + cw3 - 16, sy + 56);
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 116, 139); doc.text(['QC Inspector', 'Kabag QA', 'Management'][i], sx + 8, sy + 68); doc.setFont('helvetica', 'bold');
-      });
-
       // ---- HALAMAN 4b: LOG PART NG TERTINGGI (INSPECTION) ----
       const inspBanner = [['Tahun', lbl(fv('insp','year'), 'Semua Tahun')], ['Bulan', lbl(fv('insp','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('insp','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Customer', lbl(fv('insp','customer'), 'Semua Customer')], ...($('q-insp').value ? [['Pencarian', $('q-insp').value]] : [])];
-      partLog(di, ipie.items, 'Tanpa Part', ['No', 'Tanggal', 'Customer', 'Proses', 'Qty NG', 'Qty Repair', 'Total Check', 'Operator', 'Keterangan'],
+      const fy = partLog(di, ipie.items, 'Tanpa Part', ['No', 'Tanggal', 'Customer', 'Proses', 'Qty NG', 'Qty Repair', 'Total Check', 'Operator', 'Keterangan'],
         [[24, 'center'], [58], [140], [110], [40, 'right'], [44, 'right'], [48, 'right'], [110], [211]],
         (r, n) => [n, D10(r.tanggal), r.customer || '-', r.proses || '-', fmt(r.qtyNG), fmt(r.qtyRepair), fmt(r.totalCheck), r.operator || '-', r.keterangan || '-'],
         '3.1 LOG PART NG TERTINGGI - MONITORING DATA INSPECTION (LAMPIRAN)', 'BAGIAN 3 - INSPECTION', inspBanner);
+
+      // ---- LEMBAR PENGESAHAN: paling bawah pada halaman terakhir ----
+      const sH = 60, sy = H - 26 - sH, cw3 = CW / 3;
+      if (fy > sy - 18) { doc.addPage(); header('3.2 LEMBAR VERIFIKASI & PENGESAHAN', 'BAGIAN 3 - PENGESAHAN'); }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(15, 23, 42); doc.text('LEMBAR VERIFIKASI & PENGESAHAN LAPORAN AUDIT MUTU:', M, sy - 8);
+      ['Dipersiapkan Oleh:', 'Diverifikasi Oleh:', 'Disetujui Oleh:'].forEach((t, i) => {
+        const sx = M + i * cw3; doc.setDrawColor(203, 213, 225); doc.rect(sx, sy, cw3 - 6, sH, 'S');
+        doc.setFontSize(7); doc.setTextColor(71, 85, 105); doc.text(t, sx + 8, sy + 11); doc.line(sx + 10, sy + 38, sx + cw3 - 16, sy + 38);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 116, 139); doc.text(['QC Inspector', 'Kabag Quality', 'Kabag Produksi'][i], sx + 8, sy + 50); doc.setFont('helvetica', 'bold');
+      });
 
       // Footer semua halaman
       const n = doc.internal.getNumberOfPages();
