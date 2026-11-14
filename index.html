@@ -30,12 +30,21 @@ summary::-webkit-details-marker{display:none}
       <h1 class="text-2xl font-black">ACJ QUALITY PORTAL</h1>
       <p class="text-xs uppercase tracking-widest font-semibold text-indigo-600 mt-1">Claim Customer, Database NG & Inspection</p>
     </div>
+    <div id="loginCreds" class="space-y-4">
     <div><label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Username</label>
       <input id="lu" required autocomplete="username" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></div>
     <div><label class="block text-xs font-semibold uppercase text-slate-600 mb-1">Password</label>
       <input id="lp" type="password" required autocomplete="current-password" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></div>
     <div id="ts" class="flex justify-center min-h-[65px]"></div>
     <button id="lb" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl">Masuk Sistem</button>
+    </div>
+    <div id="mfaBox" class="hidden space-y-4">
+      <div class="text-center"><p class="text-sm font-bold text-slate-800">Verifikasi 2 Langkah (Admin)</p>
+        <p class="text-xs text-slate-500 mt-1">Masukkan 6 digit kode dari aplikasi authenticator di HP Anda.</p></div>
+      <input id="lo" inputmode="numeric" maxlength="7" autocomplete="one-time-code" placeholder="000000" class="w-full px-4 py-3 text-center text-2xl font-bold tracking-[0.4em] bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500">
+      <button id="mb" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl">Verifikasi</button>
+      <button type="button" id="mback" class="w-full text-xs text-slate-500 hover:text-slate-800 underline">Kembali ke login</button>
+    </div>
   </form>
 </div>
 
@@ -169,7 +178,7 @@ const tsReset = () => { try { if (window.turnstile && tsId !== null) turnstile.r
 
 function call(fn, ...args) {
   if (/GANTI_DENGAN/.test(API_URL)) return Promise.reject(new Error('API_URL di index.html belum diisi dengan URL Web App Apps Script.'));
-  const payload = { fn, args: fn === 'apiLogin' ? args : [S.token, ...args] };
+  const payload = { fn, args: (fn === 'apiLogin' || fn === 'apiVerifyMfa') ? args : [S.token, ...args] };
   // text/plain agar tidak memicu CORS preflight (Apps Script tidak mendukung OPTIONS)
   return fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), redirect: 'follow' })
     .then(res => { if (!res.ok) throw new Error('Server error ' + res.status); return res.json(); })
@@ -944,14 +953,37 @@ let qT; document.addEventListener('input', e => {
   const m = e.target.dataset.m; clearTimeout(qT); qT = setTimeout(() => { pg[m] = 1; render(m); }, 250);
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+/* ===== MFA Admin: langkah 2 login (kode 6 digit dari aplikasi authenticator) ===== */
+let mfaTok = null;
+function mfaStep(on) {
+  $('loginCreds').classList.toggle('hidden', on); $('mfaBox').classList.toggle('hidden', !on);
+  if (on) { $('lo').value = ''; setTimeout(() => $('lo').focus(), 50); } else { mfaTok = null; $('lp').value = ''; $('lo').value = ''; }
+}
+async function doMfa() {
+  const code = $('lo').value.replace(/\s/g, '');
+  if (!/^\d{6}$/.test(code)) return toast('Masukkan 6 digit kode dari aplikasi authenticator.', 'error');
+  const b = $('mb'); b.disabled = true; b.textContent = 'Memverifikasi...';
+  try {
+    const r = await call('apiVerifyMfa', mfaTok, code);
+    if (r.success) { mfaStep(false); enter(r.user, r.token, true); }
+    else { toast(r.message, 'error'); $('lo').value = ''; if (/kedaluwarsa|Terlalu banyak/.test(r.message)) { mfaStep(false); tsReset(); } }
+  } catch (err) { toast('Gagal verifikasi: ' + err.message, 'error'); }
+  finally { b.disabled = false; b.textContent = 'Verifikasi'; }
+}
+$('mback').addEventListener('click', () => { mfaStep(false); tsReset(); });
 $('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
+  if (mfaTok) return doMfa();
   const cf = tsToken();
   if (!cf) return toast('Selesaikan verifikasi keamanan terlebih dahulu.', 'error');
   const b = $('lb'); b.disabled = true; b.textContent = 'Memverifikasi...';
   try {
     const r = await call('apiLogin', $('lu').value.trim(), $('lp').value, cf);
-    if (r.success) enter(r.user, r.token, true); else toast(r.message, 'error');
+    if (r.success && r.mfaRequired) { mfaTok = r.mfaToken; mfaStep(true); }
+    else if (r.success) {
+      enter(r.user, r.token, true);
+      if (r.mfaWarning) setTimeout(() => toast('Peringatan: akun Admin ini belum memakai MFA. Segera aktifkan (jalankan setupMfaSemuaAdmin di Apps Script).', 'error'), 2200);
+    } else toast(r.message, 'error');
   } catch (err) { toast('Gagal login: ' + err.message, 'error'); }
   finally { b.disabled = false; b.textContent = 'Masuk Sistem'; tsReset(); }
 });
