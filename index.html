@@ -16,6 +16,19 @@
 .card{background:#fff;border-radius:1.75rem;border:1px solid #e6eeec;box-shadow:0 1px 2px rgba(15,42,36,.04)}
 .hero{background:radial-gradient(circle at 85% 20%,rgba(52,211,153,.22),transparent 45%),linear-gradient(120deg,#0b1f1a,#123a30 65%,#1a5a47)}
 .hero button{border-radius:9999px}
+.hero button.bg-slate-100{background:rgba(255,255,255,.95);color:#0f172a}
+.hero button.bg-slate-100:hover{background:#fff;transform:translateY(-1px)}
+.hero button{transition:transform .15s,background .15s,box-shadow .15s}
+/* animasi */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:scale(.96) translateY(10px)}to{opacity:1;transform:none}}
+.rise{animation:fadeUp .55s cubic-bezier(.22,1,.36,1) backwards;animation-delay:calc(var(--i,0)*70ms)}
+#loginForm{animation:popIn .6s cubic-bezier(.22,1,.36,1) backwards}
+.card{transition:box-shadow .25s,transform .25s}
+.card:hover{box-shadow:0 10px 30px -12px rgba(15,42,36,.18)}
+.rail-btn:hover{transform:scale(1.06)}
+.rail-btn:active{transform:scale(.95)}
+@media (prefers-reduced-motion:reduce){.rise,#loginForm{animation:none}.card,.rail-btn,.hero button{transition:none}}
 .rail-btn{width:3rem;height:3rem;border-radius:1rem;display:flex;align-items:center;justify-content:center;flex:none;transition:.15s}
 body{font-family:'Plus Jakarta Sans',system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
 summary::-webkit-details-marker{display:none}
@@ -324,6 +337,15 @@ function setTab(m) {
     $('tab-' + k).className = 'rail-btn ' + (k === m ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-100');
   });
   render(m);
+  stagger(m);
+}
+function stagger(m) { // fade-in bertahap untuk banner, filter, KPI, grafik, tabel
+  const sec = $('v-' + m); if (!sec) return;
+  const items = [];
+  [...sec.children].forEach(c => { if (c.classList.contains('grid')) items.push(...c.children); else items.push(c); });
+  items.forEach((el, i) => { el.classList.remove('rise'); el.style.setProperty('--i', Math.min(i, 12)); });
+  void sec.offsetWidth;
+  items.forEach(el => el.classList.add('rise'));
 }
 
 /* ================= FILTER ================= */
@@ -384,7 +406,7 @@ function popCustomers(list) {
 }
 
 /* ================= CHART FACTORIES ================= */
-const bo = x => Object.assign({ responsive: true, maintainAspectRatio: false, animation: false }, x);
+const bo = x => Object.assign({ responsive: true, maintainAspectRatio: false, animation: { duration: 900, easing: 'easeOutQuart' } }, x);
 const leg = { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } };
 function mk(key, cfg) {
   const el = $('c-' + key); if (!el) return;
@@ -421,7 +443,7 @@ function cfgTrendClaim(d) {
   const c = new Array(12).fill(0), q = new Array(12).fill(0);
   d.forEach(r => { const x = pd(r.tanggalClaim); if (x) { c[x.getMonth()]++; q[x.getMonth()] += num(r.qtyNG); } });
   return { type: 'line', data: { labels: MS, datasets: [
-    { label: 'Kasus Claim', data: c, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,.1)', fill: true, tension: .3, yAxisID: 'y' },
+    { label: 'Kasus Claim', data: c, borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,.1)', fill: true, tension: .3, yAxisID: 'y' },
     { label: 'Qty NG (Pcs)', data: q, borderColor: '#f59e0b', borderDash: [4, 4], tension: .3, yAxisID: 'y1' }] },
     options: bo({ plugins: { legend: leg }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false } } } }) };
 }
@@ -438,7 +460,7 @@ function cfgPartClaim(d, pick) {
 }
 function cfgPlant(d, pick) {
   const map = sum(d.filter(r => PLANTS.includes(r.acjPlant)), r => r.acjPlant, () => 1);
-  return { type: 'doughnut', data: { labels: PLANTS, datasets: [{ data: PLANTS.map(p => map[p] || 0), backgroundColor: ['#6366f1','#0ea5e9','#10b981','#f59e0b'] }] },
+  return { type: 'doughnut', data: { labels: PLANTS, datasets: [{ data: PLANTS.map(p => map[p] || 0), backgroundColor: ['#0f766e','#0ea5e9','#10b981','#f59e0b'] }] },
     options: bo({ plugins: { legend: leg }, onClick: (e, els) => { if (pick && els.length) pick(PLANTS[els[0].index]); } }) };
 }
 function ngYear() {
@@ -481,7 +503,7 @@ function rClaim() {
     kpi('Monitoring', fmt(d.filter(c => c.statusClaim === 'Monitoring').length), 'Dalam evaluasi', 'amber', ['claim', 'statusClaim', 'Monitoring']) +
     kpi('Closed', fmt(d.filter(c => c.statusClaim === 'Closed').length), 'Terselesaikan', 'emerald', ['claim', 'statusClaim', 'Closed']) +
     kpi('Total Qty NG', fmt(d.reduce((a, c) => a + num(c.qtyNG), 0)), 'Pieces defect', 'rose');
-  const p = cfgPareto(sum(d, r => r.kategoriNG || 'Visual', r => num(r.qtyNG)), 10, '#4f46e5', '#f43f5e', 'Qty NG', v => setDrill('claim', 'kategoriNG', v));
+  const p = cfgPareto(sum(d, r => r.kategoriNG || 'Visual', r => num(r.qtyNG)), 10, '#0f766e', '#f43f5e', 'Qty NG', v => setDrill('claim', 'kategoriNG', v));
   mk('claim-pareto', p.cfg);
   $('dist').innerHTML = p.keys.length ? p.keys.map((k, i) => `<tr class="border-b border-slate-50"><td class="py-1.5 font-medium">${esc(k)}</td><td class="text-right font-semibold text-rose-600">${fmt(p.vals[i])}</td><td class="text-right">${p.tot ? (p.vals[i] / p.tot * 100).toFixed(1) : 0}%</td><td class="text-right font-bold ${p.cum[i] <= 80 ? 'text-indigo-600' : 'text-slate-500'}">${p.cum[i]}%</td></tr>`).join('') : '<tr><td colspan="4" class="py-3 text-center text-slate-400">Tidak ada data</td></tr>';
   mk('claim-cust', cfgCust(d, v => setDrill('claim', 'namaCustomer', v)));
@@ -496,7 +518,7 @@ function rNG() {
   $('kpi-ng').innerHTML = kpi('Total Defect NG', fmt(tq), 'Pieces defect', 'rose') + kpi('Total Kasus/Lot', fmt(d.length), 'Frekuensi kejadian', 'blue') +
     kpi('Top Divisi Defect', esc(td || '-'), fmt(dv[td]) + ' pcs', 'amber') + kpi('Top Jenis Problem', esc(tf || '-'), fmt(df[tf]) + ' pcs', 'indigo');
   const parts = sum(d, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG));
-  mk('ng-pareto', cfgPareto(parts, 10, '#2563eb', '#ef4444', 'Qty NG (Pcs)', v => setDrill('ng', 'namaPart', v)).cfg);
+  mk('ng-pareto', cfgPareto(parts, 10, '#0f766e', '#ef4444', 'Qty NG (Pcs)', v => setDrill('ng', 'namaPart', v)).cfg);
   mk('ng-pie', cfgPie(parts, v => setDrill('ng', 'namaPart', v)).cfg);
   mk('ng-trend', cfgYearTrend(ngYear(), dsel.ng, i => { $('f-ng-month').value = String(i + 1); pg.ng = 1; render('ng'); toast('Filter bulan: ' + MONTHS[i], 'info'); }));
   rNGMulti(d);
@@ -504,7 +526,7 @@ function rNG() {
 function rNGMulti(d) {
   const f = $('dim').value;
   const map = sum(d, r => r[f] || 'Tidak diisi', r => num(r.qtyNG));
-  mk('ng-multi', cfgPareto(map, 10, '#4338ca', '#ef4444', 'Qty NG', v => setDrill('ng', f, v)).cfg);
+  mk('ng-multi', cfgPareto(map, 10, '#115e59', '#ef4444', 'Qty NG', v => setDrill('ng', f, v)).cfg);
 }
 function rInsp() {
   const d = filtered('insp'), T = k => d.reduce((a, r) => a + num(r[k]), 0), tc = T('totalCheck');
@@ -512,7 +534,7 @@ function rInsp() {
   $('kpi-insp').innerHTML = kpi('Total Part Check', fmt(tc), 'Pieces terinspeksi', 'slate') + kpi('Part OK', fmt(T('qtyOK')), pc(T('qtyOK')), 'emerald') +
     kpi('Part NG', fmt(T('qtyNG')), pc(T('qtyNG')), 'rose') + kpi('Part Repair', fmt(T('qtyRepair')), pc(T('qtyRepair')), 'amber');
   const parts = sum(d, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG));
-  mk('insp-pareto', cfgPareto(parts, 10, '#ef4444', '#4f46e5', 'Qty NG (Pcs)', v => setDrill('insp', 'namaPart', v)).cfg);
+  mk('insp-pareto', cfgPareto(parts, 10, '#ef4444', '#0f766e', 'Qty NG (Pcs)', v => setDrill('insp', 'namaPart', v)).cfg);
   mk('insp-pie', cfgPie(parts, v => setDrill('insp', 'namaPart', v)).cfg);
 }
 function cell(col, r) {
@@ -628,7 +650,7 @@ function exportData(m, f) {
       const doc = new J('l', 'pt', 'a4'), W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
       doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.text('Laporan ' + c.title + ' - PT. ADHI CHANDRA JAYA', 30, 30);
       doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.text(`Dicetak: ${now} | Oleh: ${by()} | ${rows.length} data`, 30, 43);
-      const rgb = { indigo: [79,70,229], blue: [37,99,235], emerald: [5,150,105] }[c.color];
+      const rgb = { indigo: [18,94,74], blue: [37,99,235], emerald: [5,150,105] }[c.color];
       doc.autoTable({ head: [c.cols.map(x => x[0])], body: rows.map(r => c.cols.map(x => { const v = cellVal(x, r); return x[2] === 'n' ? fmt(v) : x[2] === 'p' ? v + '%' : v; })),
         startY: 52, theme: 'striped', margin: { left: 30, right: 30 }, styles: { fontSize: 6.5, cellPadding: 3 }, headStyles: { fillColor: rgb },
         didDrawPage: () => { doc.setFontSize(7); doc.setTextColor(120); doc.text('Halaman ' + doc.internal.getCurrentPageInfo().pageNumber, W - 30, H - 14, { align: 'right' }); } });
@@ -648,7 +670,7 @@ function execReport() {
       const M = 28, CW = W - 2 * M, HALF = (CW - 12) / 2, now = new Date().toLocaleString('id-ID');
       const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
       const header = (title, badge) => {
-        doc.setFillColor(15, 23, 42); doc.rect(M, 20, CW, 56, 'F');
+        doc.setFillColor(18, 58, 48); doc.rect(M, 20, CW, 56, 'F'); doc.setFillColor(52, 211, 153); doc.rect(M, 20, 4, 56, 'F');
         doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text('PT. ADHI CHANDRA JAYA', M + 12, 38);
         doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(203, 213, 225);
         doc.text('Metal Processing for Automotive Parts, Electronics and House Accessories', M + 12, 50);
@@ -703,7 +725,7 @@ function execReport() {
         const p0 = doc.internal.getCurrentPageInfo().pageNumber;
         doc.autoTable({ startY: y0 + 10, margin: { left: M, right: M, top: 106, bottom: 30 }, theme: 'grid', tableWidth: CW,
           styles: { fontSize: 6.3, cellPadding: 1.4, overflow: 'ellipsize', lineColor: [226, 232, 240], lineWidth: 0.4 },
-          headStyles: { fillColor: [15, 23, 42], textColor: 255 }, columnStyles: cs, head: [head], body,
+          headStyles: { fillColor: [18, 58, 48], textColor: 255 }, columnStyles: cs, head: [head], body,
           didDrawPage: d => { if (d.pageNumber > p0) header(title + ' (lanjutan)', badge); } });
         return doc.lastAutoTable.finalY;
       };
@@ -723,7 +745,7 @@ function execReport() {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
       doc.text(`Log Register Claim Customer (sesuai filter aktif${dc.length > MAXR ? `, ${MAXR} dari ${dc.length} data - selengkapnya lihat portal/Excel` : ''}):`, M, y);
       const p1 = doc.internal.getCurrentPageInfo().pageNumber;
-      doc.autoTable({ startY: y + 6, margin: { left: M, right: M, top: 106 }, theme: 'striped', styles: { fontSize: 6.5, cellPadding: 3 }, headStyles: { fillColor: [79, 70, 229] },
+      doc.autoTable({ startY: y + 6, margin: { left: M, right: M, top: 106 }, theme: 'striped', styles: { fontSize: 6.5, cellPadding: 3 }, headStyles: { fillColor: [18, 58, 48] },
         head: [['ID Reg','Tanggal','Plant','Kategori','Customer','No Claim','Nama Part','Jenis NG','Check','NG','%','Status','Doc','PICA']],
         body: dc.length ? dc.slice(0, MAXR).map(c => [c.idRegister, c.tanggalClaim, c.acjPlant, c.kategoriClaim || 'Claim', c.namaCustomer, c.noClaim || '-', c.namaPart, c.keteranganJenisNG, fmt(c.qtyCheck), fmt(c.qtyNG), num(c.prosentase) + '%', c.statusClaim, c.officialDoc ? 'Ada' : '-', c.pica ? 'Ada' : '-']) : [['-','Tidak ada data claim pada filter ini','-','-','-','-','-','-','-','-','-','-','-','-']],
         didDrawPage: d => { if (d.pageNumber > p1) header('1. LAPORAN AUDIT REGISTER CLAIM CUSTOMER (lanjutan)', 'BAGIAN 1 - CLAIM'); } });
@@ -756,7 +778,7 @@ function execReport() {
         doc.addPage(); header(title, 'BAGIAN 2 - PARETO NG');
         const yy = banner(104, list), PH = (H - yy - 40) / 2 - 6;
         [['namaPart','1. Pareto by Jumlah Part NG'], ['jenisNG','2. Pareto by Jenis Problem NG'], ['namaOperator','3. Pareto by Nama Operator'], ['noMesin','4. Pareto by Nomor Mesin']].forEach(([f, t], i) => {
-          const cfg = cfgPareto(sum(data, r => r[f] || 'Tidak diisi', r => num(r.qtyNG)), 8, '#2563eb', '#ef4444', 'Qty NG').cfg;
+          const cfg = cfgPareto(sum(data, r => r[f] || 'Tidak diisi', r => num(r.qtyNG)), 8, '#0f766e', '#ef4444', 'Qty NG').cfg;
           doc.addImage(snap(cfg, 770, Math.round(770 * PH / HALF), t + suffix), 'PNG', M + (i % 2) * (HALF + 12), yy + Math.floor(i / 2) * (PH + 12), HALF, PH);
         });
       };
@@ -773,7 +795,7 @@ function execReport() {
       y = banner(104, [['Tahun', lbl(fv('insp','year'), 'Semua Tahun')], ['Bulan', lbl(fv('insp','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('insp','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Customer', lbl(fv('insp','customer'), 'Semua Customer')], ...($('q-insp').value ? [['Pencarian', $('q-insp').value]] : [])]);
       y = kRow(y, [['TOTAL PART CHECK', fmt(tc) + ' Pcs', [15,23,42], '100%'], ['PART OK (LOLOS)', fmt(T('qtyOK')) + ' Pcs', [5,150,105], pc(T('qtyOK'))], ['PART NG (DEFECT)', fmt(T('qtyNG')) + ' Pcs', [225,29,72], pc(T('qtyNG'))], ['PART REPAIR', fmt(T('qtyRepair')) + ' Pcs', [217,119,6], pc(T('qtyRepair'))]]);
       const ip = sum(di, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG)), IH = 230;
-      doc.addImage(snap(cfgPareto(ip, 8, '#ef4444', '#4f46e5', 'Qty NG (Pcs)').cfg, 770, Math.round(770 * IH / HALF), 'Pareto Chart NG Tertinggi Data Inspection (80/20)'), 'PNG', M, y, HALF, IH);
+      doc.addImage(snap(cfgPareto(ip, 8, '#ef4444', '#0f766e', 'Qty NG (Pcs)').cfg, 770, Math.round(770 * IH / HALF), 'Pareto Chart NG Tertinggi Data Inspection (80/20)'), 'PNG', M, y, HALF, IH);
       const ipie = cfgPie(ip); ipie.cfg.options.plugins.legend = { display: false };
       const rx2 = M + HALF + 12; doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42); doc.text('Top 5 Part NG Tertinggi Inspeksi', rx2, y + 8);
       doc.addImage(snap(ipie.cfg, 400, 400), 'PNG', rx2, y + 14, IH - 14, IH - 14);
@@ -835,12 +857,12 @@ function buildPrintHTML(m, orient, forPreview) {
 *{box-sizing:border-box}
 body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;font-size:${fz}px}
 ${forPreview ? '@media screen{body{background:#cbd5e1;padding:16px}.sheet{background:#fff;max-width:' + (orient === 'landscape' ? '1123px' : '794px') + ';margin:0 auto;padding:24px;box-shadow:0 4px 18px rgba(0,0,0,.25)}}' : ''}
-.top{border-bottom:2px solid #0f172a;padding-bottom:6px;margin-bottom:8px}
+.top{border-bottom:2px solid #123a30;padding-bottom:6px;margin-bottom:8px}
 .top h1{font-size:14px;margin:0}.top h2{font-size:12px;margin:2px 0 0;color:#334155}
 .meta{font-size:${fz}px;color:#475569;margin:6px 0 10px;line-height:1.6}
 table{width:100%;border-collapse:collapse}
 th,td{border:1px solid #94a3b8;padding:3px 5px;text-align:left;vertical-align:top;word-break:break-word}
-th{background:#1e293b;color:#fff;font-size:${fz}px;text-transform:uppercase}
+th{background:#123a30;color:#fff;font-size:${fz}px;text-transform:uppercase}
 thead{display:table-header-group}tr{page-break-inside:avoid}
 tbody tr:nth-child(even) td{background:#f1f5f9}
 .r{text-align:right}.tot td{font-weight:bold;background:#e2e8f0!important}
