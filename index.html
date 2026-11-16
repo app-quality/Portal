@@ -23,7 +23,9 @@
 @keyframes ssProg{from{width:0}to{width:100%}}
 .show-mode #hdr{display:none!important}
 .show-mode #app{padding-top:1.25rem!important;padding-left:2rem!important}
-.show-mode #app section>:nth-child(2),.show-mode #app section>:nth-child(5),.show-mode .hero>:last-child{display:none!important}
+.show-mode #app section>:nth-child(2),.show-mode .hero>:last-child,.show-mode #app section>:nth-child(5)>:last-child,.show-mode #app .srch{display:none!important}
+.show-mode #app{padding-bottom:6rem!important}
+html{scroll-behavior:auto!important}
 .show-mode.idle{cursor:none}
 #ssCtl{transition:opacity .4s,transform .4s}
 .show-mode.idle #ssCtl{opacity:0;transform:translate(-50%,12px);pointer-events:none}
@@ -1048,28 +1050,42 @@ let qT; document.addEventListener('input', e => {
   const m = e.target.dataset.m; clearTimeout(qT); qT = setTimeout(() => { pg[m] = 1; render(m); }, 250);
 });
 /* ================= MODE SLIDESHOW (otomatis ganti menu) ================= */
-const SS = { on: false, paused: false, sec: 60, t: null, idle: null };
-function ssRestart() {
-  clearTimeout(SS.t);
-  const keys = Object.keys(MOD), bar = $('ssBar');
+const SS = { on: false, paused: false, sec: 60, el: 0, last: 0, raf: 0, idle: null };
+const SS_DWELL = .25, SS_SCROLL = .65; // 25% diam di atas (KPI & grafik), 65% scroll pelan ke log, sisanya tahan di bawah
+function ssLabel() {
+  const keys = Object.keys(MOD);
   $('ssLbl').textContent = (keys.indexOf(S.tab) + 1) + '/' + keys.length + ' · ' + MOD[S.tab].title;
-  bar.style.animation = 'none'; void bar.offsetWidth;
-  if (SS.paused) { bar.style.width = '0'; return; }
-  bar.style.animation = `ssProg ${SS.sec}s linear forwards`;
-  SS.t = setTimeout(() => ssNext(1), SS.sec * 1000);
+}
+function ssRestart() {
+  SS.el = 0; SS.last = performance.now();
+  ssLabel(); window.scrollTo({ top: 0, behavior: 'instant' });
+}
+function ssLoop(ts) {
+  if (!SS.on) return;
+  const dt = Math.min(ts - SS.last, 250); SS.last = ts;
+  if (!SS.paused) {
+    SS.el += dt;
+    const total = SS.sec * 1000, f = SS.el / total;
+    $('ssBar').style.width = Math.min(f * 100, 100) + '%';
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const p = Math.min(Math.max((f - SS_DWELL) / SS_SCROLL, 0), 1);
+    if (max > 0) window.scrollTo({ top: max * p, behavior: 'instant' });
+    if (SS.el >= total) ssNext(1);
+  }
+  SS.raf = requestAnimationFrame(ssLoop);
 }
 function ssNext(step) {
   if (!SS.on) return;
   if ($('app').classList.contains('hidden')) return ssStop(); // sudah logout
-  const keys = Object.keys(MOD), i = keys.indexOf(S.tab);
-  setTab(keys[(i + step + keys.length) % keys.length]);
-  window.scrollTo(0, 0);
+  const keys = Object.keys(MOD), i = keys.indexOf(S.tab), m = keys[(i + step + keys.length) % keys.length];
+  setTab(m);
+  try { pg[m] = 1; table(m); } catch (e) { /* log tetap di halaman pertama */ }
   ssRestart();
 }
 function ssPause() {
   SS.paused = !SS.paused;
   $('ssPause').textContent = SS.paused ? 'Lanjut' : 'Pause';
-  ssRestart();
+  SS.last = performance.now();
 }
 function ssWake() {
   document.body.classList.remove('idle'); clearTimeout(SS.idle);
@@ -1082,16 +1098,18 @@ async function ssStart() {
   document.body.classList.add('show-mode');
   $('ssBarWrap').classList.remove('hidden'); $('ssCtl').classList.remove('hidden');
   try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); } catch (e) { /* tetap jalan tanpa fullscreen */ }
-  window.scrollTo(0, 0); ssRestart(); ssWake();
+  try { pg[S.tab] = 1; table(S.tab); } catch (e) {}
+  ssRestart(); ssWake();
+  cancelAnimationFrame(SS.raf); SS.raf = requestAnimationFrame(ssLoop);
 }
 function ssStop() {
   if (!SS.on) return;
-  SS.on = false; clearTimeout(SS.t); clearTimeout(SS.idle);
+  SS.on = false; cancelAnimationFrame(SS.raf); clearTimeout(SS.idle);
   document.body.classList.remove('show-mode', 'idle');
   $('ssBarWrap').classList.add('hidden'); $('ssCtl').classList.add('hidden');
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 }
-$('ssSec').addEventListener('change', e => { SS.sec = Number(e.target.value) || 60; ssRestart(); });
+$('ssSec').addEventListener('change', e => { SS.sec = Number(e.target.value) || 60; if (SS.on) ssRestart(); });
 document.addEventListener('fullscreenchange', () => { if (SS.on && !document.fullscreenElement) ssStop(); });
 document.addEventListener('mousemove', ssWake);
 document.addEventListener('keydown', e => {
