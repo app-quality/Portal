@@ -108,7 +108,7 @@ summary::-webkit-details-marker{display:none}
   <button data-act="ssprev" class="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20">&#8249; Prev</button>
   <button data-act="sspause" id="ssPause" class="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 min-w-[4.5rem]">Pause</button>
   <button data-act="ssnext" class="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20">Next &#8250;</button>
-  <select id="ssSec" aria-label="Durasi per slide" class="bg-white/10 rounded-full px-2 py-1.5 outline-none"><option class="text-slate-900" value="10">10 dtk</option><option class="text-slate-900" value="20">20 dtk</option><option class="text-slate-900" value="30">30 dtk</option><option class="text-slate-900" value="60" selected>1 menit</option></select>
+  <select id="ssSec" aria-label="Durasi per menu" class="bg-white/10 rounded-full px-2 py-1.5 outline-none"><option class="text-slate-900" value="90">1,5 menit</option><option class="text-slate-900" value="120">2 menit</option><option class="text-slate-900" value="150" selected>2,5 menit</option><option class="text-slate-900" value="180">3 menit</option></select>
   <button data-act="ssstop" class="px-3 py-1.5 rounded-full bg-rose-500 hover:bg-rose-600">Keluar &#10005;</button>
 </div>
 
@@ -1050,8 +1050,11 @@ let qT; document.addEventListener('input', e => {
   const m = e.target.dataset.m; clearTimeout(qT); qT = setTimeout(() => { pg[m] = 1; render(m); }, 250);
 });
 /* ================= MODE SLIDESHOW (otomatis ganti menu) ================= */
-const SS = { on: false, paused: false, sec: 60, el: 0, last: 0, raf: 0, idle: null };
-const SS_DWELL = .25, SS_SCROLL = .65; // 25% diam di atas (KPI & grafik), 65% scroll pelan ke log, sisanya tahan di bawah
+const SS = { on: false, paused: false, sec: 150, el: 0, last: 0, raf: 0, idle: null };
+// Fase per menu (proporsi dari durasi): 0-25% KPI & grafik | 25-37% turun ke Log Register | 37-43% baca kolom awal
+// 43-80% geser tabel ke kanan | 80-95% turun ke baris terbawah | sisanya tahan
+const lerp = (a, b, x) => a + (b - a) * Math.min(Math.max(x, 0), 1);
+function ssTbl() { const s = $('v-' + S.tab); return s ? s.querySelector('.tbl') : null; }
 function ssLabel() {
   const keys = Object.keys(MOD);
   $('ssLbl').textContent = (keys.indexOf(S.tab) + 1) + '/' + keys.length + ' · ' + MOD[S.tab].title;
@@ -1059,6 +1062,7 @@ function ssLabel() {
 function ssRestart() {
   SS.el = 0; SS.last = performance.now();
   ssLabel(); window.scrollTo({ top: 0, behavior: 'instant' });
+  const tb = ssTbl(); if (tb) tb.scrollLeft = 0;
 }
 function ssLoop(ts) {
   if (!SS.on) return;
@@ -1067,9 +1071,13 @@ function ssLoop(ts) {
     SS.el += dt;
     const total = SS.sec * 1000, f = SS.el / total;
     $('ssBar').style.width = Math.min(f * 100, 100) + '%';
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    const p = Math.min(Math.max((f - SS_DWELL) / SS_SCROLL, 0), 1);
-    if (max > 0) window.scrollTo({ top: max * p, behavior: 'instant' });
+    const max = Math.max(document.documentElement.scrollHeight - window.innerHeight, 0);
+    const card = $('v-' + S.tab).children[4];
+    const y1 = card ? Math.min(Math.max(card.getBoundingClientRect().top + window.scrollY - 12, 0), max) : max;
+    const y = f < .25 ? 0 : f < .37 ? lerp(0, y1, (f - .25) / .12) : f < .80 ? y1 : lerp(y1, max, (f - .80) / .15);
+    window.scrollTo({ top: y, behavior: 'instant' });
+    const tb = ssTbl();
+    if (tb) tb.scrollLeft = lerp(0, Math.max(tb.scrollWidth - tb.clientWidth, 0), (f - .43) / .37);
     if (SS.el >= total) ssNext(1);
   }
   SS.raf = requestAnimationFrame(ssLoop);
@@ -1093,7 +1101,7 @@ function ssWake() {
 }
 async function ssStart() {
   if (SS.on) return;
-  SS.on = true; SS.paused = false; SS.sec = Number($('ssSec').value) || 60;
+  SS.on = true; SS.paused = false; SS.sec = Number($('ssSec').value) || 150;
   $('ssPause').textContent = 'Pause';
   document.body.classList.add('show-mode');
   $('ssBarWrap').classList.remove('hidden'); $('ssCtl').classList.remove('hidden');
@@ -1109,7 +1117,7 @@ function ssStop() {
   $('ssBarWrap').classList.add('hidden'); $('ssCtl').classList.add('hidden');
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
 }
-$('ssSec').addEventListener('change', e => { SS.sec = Number(e.target.value) || 60; if (SS.on) ssRestart(); });
+$('ssSec').addEventListener('change', e => { SS.sec = Number(e.target.value) || 150; if (SS.on) ssRestart(); });
 document.addEventListener('fullscreenchange', () => { if (SS.on && !document.fullscreenElement) ssStop(); });
 document.addEventListener('mousemove', ssWake);
 document.addEventListener('keydown', e => {
