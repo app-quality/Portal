@@ -19,6 +19,14 @@
 .hero button.bg-slate-100{background:rgba(255,255,255,.95);color:#0f172a}
 .hero button.bg-slate-100:hover{background:#fff;transform:translateY(-1px)}
 .hero button{transition:transform .15s,background .15s,box-shadow .15s}
+/* mode slideshow */
+@keyframes ssProg{from{width:0}to{width:100%}}
+.show-mode #hdr{display:none!important}
+.show-mode #app{padding-top:1.25rem!important;padding-left:2rem!important}
+.show-mode #app section>:nth-child(2),.show-mode #app section>:nth-child(5),.show-mode .hero>:last-child{display:none!important}
+.show-mode.idle{cursor:none}
+#ssCtl{transition:opacity .4s,transform .4s}
+.show-mode.idle #ssCtl{opacity:0;transform:translate(-50%,12px);pointer-events:none}
 /* animasi */
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 @keyframes popIn{from{opacity:0;transform:scale(.96) translateY(10px)}to{opacity:1;transform:none}}
@@ -82,6 +90,7 @@ summary::-webkit-details-marker{display:none}
   <div class="hidden lg:flex rail-btn bg-slate-900 text-white font-extrabold text-xl" title="ACJ Quality System">A</div>
   <nav id="tabs" class="flex lg:flex-col gap-2 lg:mt-6 lg:mr-0"></nav>
   <div class="flex lg:flex-col items-center gap-2 lg:mt-auto">
+    <button data-act="show" title="Mode Slideshow (layar penuh, otomatis ganti menu)" aria-label="Mode Slideshow" class="rail-btn text-slate-400 hover:bg-slate-100 hover:text-emerald-600"><i data-lucide="presentation" class="w-5 h-5"></i></button>
     <button data-act="exec" title="Laporan Eksekutif PDF" aria-label="Laporan Eksekutif PDF" class="rail-btn text-slate-400 hover:bg-slate-100 hover:text-emerald-600"><i data-lucide="file-check-2" class="w-5 h-5"></i></button>
     <button data-act="sync" title="Sinkronkan" aria-label="Sinkronkan" class="rail-btn text-slate-400 hover:bg-slate-100 hover:text-slate-700"><i data-lucide="refresh-cw" id="syncIcon" class="w-5 h-5"></i></button>
     <button data-act="logout" title="Logout" aria-label="Logout" class="rail-btn text-slate-400 hover:bg-rose-50 hover:text-rose-600"><i data-lucide="log-out" class="w-5 h-5"></i></button>
@@ -91,6 +100,15 @@ summary::-webkit-details-marker{display:none}
     <span id="sync" class="text-[11px] text-slate-400 whitespace-nowrap">Sync: --</span>
   </div>
 </header>
+<div id="ssBarWrap" class="hidden fixed top-0 inset-x-0 h-1 z-[60] bg-black/10"><div id="ssBar" class="h-full bg-emerald-400"></div></div>
+<div id="ssCtl" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-slate-900/90 backdrop-blur text-white rounded-full pl-4 pr-2 py-2 shadow-2xl text-xs font-semibold">
+  <span id="ssLbl" class="mr-1 whitespace-nowrap"></span>
+  <button data-act="ssprev" class="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20">&#8249; Prev</button>
+  <button data-act="sspause" id="ssPause" class="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 min-w-[4.5rem]">Pause</button>
+  <button data-act="ssnext" class="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20">Next &#8250;</button>
+  <select id="ssSec" aria-label="Durasi per slide" class="bg-white/10 rounded-full px-2 py-1.5 outline-none"><option class="text-slate-900" value="10">10 dtk</option><option class="text-slate-900" value="20">20 dtk</option><option class="text-slate-900" value="30">30 dtk</option><option class="text-slate-900" value="60" selected>1 menit</option></select>
+  <button data-act="ssstop" class="px-3 py-1.5 rounded-full bg-rose-500 hover:bg-rose-600">Keluar &#10005;</button>
+</div>
 
 <main id="app" class="hidden max-w-[1400px] mx-auto px-4 sm:px-6 pt-16 pb-24 lg:pl-32 lg:pr-8 lg:pb-10 space-y-6"></main>
 <div id="modal" class="fixed inset-0 z-[60] hidden bg-slate-900/60 backdrop-blur-sm overflow-y-auto p-4"></div>
@@ -989,6 +1007,11 @@ document.addEventListener('click', e => {
   else if (act === 'print') directPrint(m);
   else if (act === 'pvprint') printFrame($('pvFrame'));
   else if (act === 'pvclose') { $('pvModal').classList.add('hidden'); $('pvFrame').srcdoc = ''; }
+  else if (act === 'show') ssStart();
+  else if (act === 'ssprev') ssNext(-1);
+  else if (act === 'ssnext') ssNext(1);
+  else if (act === 'sspause') ssPause();
+  else if (act === 'ssstop') ssStop();
   else if (act === 'exec') execReport();
   else if (act === 'sync') sync(true);
   else if (act === 'logout') doLogout(false);
@@ -1024,6 +1047,62 @@ let qT; document.addEventListener('input', e => {
   if (!e.target.classList.contains('srch')) return;
   const m = e.target.dataset.m; clearTimeout(qT); qT = setTimeout(() => { pg[m] = 1; render(m); }, 250);
 });
+/* ================= MODE SLIDESHOW (otomatis ganti menu) ================= */
+const SS = { on: false, paused: false, sec: 60, t: null, idle: null };
+function ssRestart() {
+  clearTimeout(SS.t);
+  const keys = Object.keys(MOD), bar = $('ssBar');
+  $('ssLbl').textContent = (keys.indexOf(S.tab) + 1) + '/' + keys.length + ' · ' + MOD[S.tab].title;
+  bar.style.animation = 'none'; void bar.offsetWidth;
+  if (SS.paused) { bar.style.width = '0'; return; }
+  bar.style.animation = `ssProg ${SS.sec}s linear forwards`;
+  SS.t = setTimeout(() => ssNext(1), SS.sec * 1000);
+}
+function ssNext(step) {
+  if (!SS.on) return;
+  if ($('app').classList.contains('hidden')) return ssStop(); // sudah logout
+  const keys = Object.keys(MOD), i = keys.indexOf(S.tab);
+  setTab(keys[(i + step + keys.length) % keys.length]);
+  window.scrollTo(0, 0);
+  ssRestart();
+}
+function ssPause() {
+  SS.paused = !SS.paused;
+  $('ssPause').textContent = SS.paused ? 'Lanjut' : 'Pause';
+  ssRestart();
+}
+function ssWake() {
+  document.body.classList.remove('idle'); clearTimeout(SS.idle);
+  if (SS.on) SS.idle = setTimeout(() => document.body.classList.add('idle'), 3000);
+}
+async function ssStart() {
+  if (SS.on) return;
+  SS.on = true; SS.paused = false; SS.sec = Number($('ssSec').value) || 60;
+  $('ssPause').textContent = 'Pause';
+  document.body.classList.add('show-mode');
+  $('ssBarWrap').classList.remove('hidden'); $('ssCtl').classList.remove('hidden');
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); } catch (e) { /* tetap jalan tanpa fullscreen */ }
+  window.scrollTo(0, 0); ssRestart(); ssWake();
+}
+function ssStop() {
+  if (!SS.on) return;
+  SS.on = false; clearTimeout(SS.t); clearTimeout(SS.idle);
+  document.body.classList.remove('show-mode', 'idle');
+  $('ssBarWrap').classList.add('hidden'); $('ssCtl').classList.add('hidden');
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+$('ssSec').addEventListener('change', e => { SS.sec = Number(e.target.value) || 60; ssRestart(); });
+document.addEventListener('fullscreenchange', () => { if (SS.on && !document.fullscreenElement) ssStop(); });
+document.addEventListener('mousemove', ssWake);
+document.addEventListener('keydown', e => {
+  if (!SS.on) return;
+  if (e.key === 'Escape') ssStop();
+  else if (e.key === 'ArrowRight') ssNext(1);
+  else if (e.key === 'ArrowLeft') ssNext(-1);
+  else if (e.key === ' ') { e.preventDefault(); ssPause(); }
+  ssWake();
+});
+
 document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
 /* ===== MFA Admin: langkah 2 login (kode 6 digit dari aplikasi authenticator) ===== */
 let mfaTok = null;
