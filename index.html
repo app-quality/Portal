@@ -134,7 +134,7 @@ summary::-webkit-details-marker{display:none}
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num = v => Number(v) || 0;
-const fmt = n => num(n).toLocaleString('id-ID');
+const fmt = n => num(n).toLocaleString('id-ID', { maximumFractionDigits: 0 });
 const today = () => new Date().toLocaleDateString('sv-SE');
 const add90 = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d+90).toLocaleDateString('sv-SE'); };
 const pd = s => { if (!/^\d{4}-\d{2}-\d{2}/.test(s || '')) return null; const d = new Date(s.slice(0,10) + 'T00:00:00'); return isNaN(d) ? null : d; };
