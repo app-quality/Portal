@@ -168,7 +168,7 @@ const MOD = {
     cols: [['ID NG','idNG'],['Tanggal','tanggal'],['Nama Part','namaPart'],['Qty NG','qtyNG','n'],['Jenis Defect','jenisNG'],['Faktor Penyebab','faktorPenyebab'],['Divisi','divisi'],['No Mesin','noMesin'],['Operator','namaOperator']] },
   insp: { title: 'Data Inspection', sheet: 'Data_Inspection', idk: 'uid', dk: 'tanggal', color: 'emerald', icon: 'check-square',
     search: ['namaPart','customer','proses','operator','keterangan','no'],
-    cols: [['No','no'],['Tanggal','tanggal'],['Nama Part','namaPart'],['Customer','customer'],['Proses','proses'],['Qty OK','qtyOK','n'],['Qty NG','qtyNG','n'],['Qty Repair','qtyRepair','n'],['Total Check','totalCheck','n'],['Operator','operator'],['Keterangan','keterangan']] }
+    cols: [['No','no','',0],['Tanggal','tanggal'],['Nama Part','namaPart'],['Customer','customer'],['Proses','proses'],['Qty OK','qtyOK','n'],['Qty NG','qtyNG','n'],['Qty Repair','qtyRepair','n'],['Total Check','totalCheck','n'],['Operator','operator'],['Keterangan','keterangan']] }
 };
 const CH = {
   claim: [['pareto','Pareto Kategori NG (80/20)','Klik batang untuk filter log',4],['dist','','',2],['cust','Top 5 Customer','Jumlah kasus (klik untuk filter)',2],['trend','Tren Kasus & Qty NG','Bulanan',2],['plant','Claim per Plant','Klik irisan untuk filter',2],['part','Jumlah Claim per Nama Part','10 part dengan kasus terbanyak, dipisah kategori Claim & Informasi (klik batang untuk filter log)',6]],
