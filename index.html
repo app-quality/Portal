@@ -279,8 +279,8 @@
               <select id="filterDashDiameter" onchange="renderCharts()" class="text-xs font-medium py-1.5 px-3 mac-input">
                 <option value="ALL">Semua Diameter</option>
               </select>
-              <button onclick="resetDashboardFilter()" class="text-xs font-semibold text-mac-blue hover:bg-blue-50 px-3 py-1.5 rounded-lg transition">
-                Reset
+              <button onclick="refreshData()" id="btnSyncData" class="px-3 py-1.5 rounded-lg bg-mac-blue/10 hover:bg-mac-blue/20 text-mac-blue text-xs font-semibold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-arrows-rotate" id="iconSync"></i> Sync
               </button>
             </div>
           </div>
@@ -917,21 +917,31 @@
     }
 
     function refreshData() {
+      const iconSync = document.getElementById('iconSync');
+      if (iconSync) iconSync.classList.add('fa-spin');
+
       if (typeof google !== 'undefined' && google.script) {
         google.script.run
           .withSuccessHandler((res) => {
-            if (res.success) {
-              rawLogs = res.data;
+            if (iconSync) iconSync.classList.remove('fa-spin');
+            if (res && res.success) {
+              rawLogs = res.data || [];
               populateFilterYears();
               applyTableFilter();
               updateDashboardMetrics();
               renderCharts();
+              showToast(`Tersinkronisasi (${rawLogs.length} data dari Sheet)`, "success");
             } else {
-              showToast(res.message, "error");
+              showToast(res ? res.message : "Respon server kosong", "error");
             }
+          })
+          .withFailureHandler((err) => {
+            if (iconSync) iconSync.classList.remove('fa-spin');
+            showToast("Gagal sinkronisasi Sheet: " + err, "error");
           })
           .getAllLogs();
       } else {
+        if (iconSync) iconSync.classList.remove('fa-spin');
         rawLogs = [
           { no: 1, cuttingDate: '2026-11-01', diameter: '10.07', partNo: 'PN-7721-A', invoiceNo: 'INV-9901', bundleNo: 4, lotNumber: 'HKHP1/11/26/00001', hardenDate: '2026-11-02', operator: 'Subur', shift: 'Shift 1', startTime: '07:30', stopTime: '15:30', okQty: 1200, labQty: 10, totalQty: 1210, keterangan: 'Normal', recordId: 'REC-1' },
           { no: 2, cuttingDate: '2026-11-02', diameter: '12.57', partNo: 'PN-8802-C', invoiceNo: 'INV-9902', bundleNo: 5, lotNumber: 'HKHP1/11/26/00002', hardenDate: '2026-11-03', operator: 'Herman', shift: 'Shift 2', startTime: '15:30', stopTime: '23:00', okQty: 950, labQty: 15, totalQty: 965, keterangan: 'Coil diganti', recordId: 'REC-2' },
