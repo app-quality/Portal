@@ -374,8 +374,8 @@ const fv = (m, k) => {
   if (k === 'week') { const s = wsel[m]; return s && s.size && fv(m, 'month') !== 'ALL' ? [...s].sort((a, b) => a - b).join(', ') : 'ALL'; }
   const e = $(`f-${m}-${k}`); return e ? e.value : 'ALL';
 };
-function filtered(m, tbl) {
-  const c = MOD[m], y = fv(m,'year'), mo = fv(m,'month'), w = fv(m,'week'), cu = fv(m,'customer'), pl = fv(m,'plant'), kt = fv(m,'kategori');
+function filtered(m, tbl, yo) {
+  const c = MOD[m], y = yo !== undefined ? String(yo) : fv(m,'year'), mo = fv(m,'month'), w = fv(m,'week'), cu = fv(m,'customer'), pl = fv(m,'plant'), kt = fv(m,'kategori');
   const q = ($('q-' + m).value || '').toLowerCase().trim(), dr = tbl && drill[m];
   return D[m].filter(r => {
     const d = pd(r[c.dk]);
@@ -458,6 +458,13 @@ function cfgCust(d, pick) {
   const map = sum(d, r => r.namaCustomer || 'Unknown', () => 1), keys = Object.keys(map).sort((a, b) => map[b] - map[a]).slice(0, 5);
   return { type: 'bar', data: { labels: keys.length ? keys : ['Tidak ada data'], datasets: [{ label: 'Total Kasus', data: keys.length ? keys.map(k => map[k]) : [0], backgroundColor: '#06b6d4', borderRadius: 5 }] },
     options: bo({ indexAxis: 'y', plugins: { legend: { display: false } }, onClick: (e, els) => { if (pick && els.length) pick(keys[els[0].index]); }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } } }) };
+}
+function cfgCompareClaim(a, b, ya, yb) {
+  const f = d => { const c = new Array(12).fill(0); d.forEach(r => { const x = pd(r.tanggalClaim); if (x) c[x.getMonth()]++; }); return c; };
+  return { type: 'bar', data: { labels: MS, datasets: [
+    { label: String(ya), data: f(a), backgroundColor: '#94a3b8', borderRadius: 3 },
+    { label: String(yb), data: f(b), backgroundColor: '#0f766e', borderRadius: 3 }] },
+    options: bo({ plugins: { legend: leg }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }) };
 }
 function cfgTrendClaim(d) {
   const c = new Array(12).fill(0), q = new Array(12).fill(0);
@@ -761,6 +768,34 @@ function execReport() {
       doc.addImage(snap(cfgCust(dc), 620, 230, 'Top 5 Customer Terbanyak (Kasus)'), 'PNG', M, y, HALF, 143);
       doc.addImage(snap(cfgTrendClaim(dc), 620, 230, 'Tren Kasus & Qty Defect Bulanan'), 'PNG', M + HALF + 12, y, HALF, 143);
       y += 152;
+      // ---- Perbandingan tahun sebelumnya vs tahun terpilih (hanya halaman 1) ----
+      {
+        const sel = fv('claim', 'year');
+        const yrs = D.claim.map(r => pd(r.tanggalClaim)).filter(Boolean).map(d => d.getFullYear());
+        const curY = sel === 'ALL' ? (yrs.length ? Math.max(...yrs) : new Date().getFullYear()) : Number(sel), prevY = curY - 1;
+        const dP = filtered('claim', false, prevY), dN = filtered('claim', false, curY);
+        const st = a => { const chk = a.reduce((s, r) => s + num(r.qtyCheck), 0), ng = a.reduce((s, r) => s + num(r.qtyNG), 0), cl = a.filter(r => (r.kategoriClaim || 'Claim') === 'Claim').length;
+          return { n: a.length, cl, inf: a.length - cl, chk, ng, pct: chk ? ng / chk * 100 : 0, closed: a.filter(r => r.statusClaim === 'Closed').length }; };
+        const a = st(dP), b = st(dN), sg = v => (v > 0 ? '+' : '');
+        const rows = [['Total Kasus', 'n', 1], ['Kategori Claim', 'cl', 1], ['Kategori Informasi', 'inf', 0], ['Status Closed', 'closed', 0], ['Total Qty Check (pcs)', 'chk', 0], ['Total Qty NG (pcs)', 'ng', 1], ['% NG terhadap Check', 'pct', 1]];
+        const body = rows.map(([l, k]) => {
+          const d = b[k] - a[k], isP = k === 'pct';
+          const pc = isP ? '-' : (a[k] === 0 ? (b[k] === 0 ? '0%' : 'baru') : sg(d) + (d / a[k] * 100).toFixed(1) + '%');
+          return [l, isP ? a[k].toFixed(2) + '%' : fmt(a[k]), isP ? b[k].toFixed(2) + '%' : fmt(b[k]), isP ? sg(d) + d.toFixed(2) + ' pp' : sg(d) + fmt(d), pc];
+        });
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
+        doc.text(`Perbandingan Claim Customer: ${prevY} vs ${curY}` + (sel === 'ALL' ? ' (Semua Tahun dipilih - dibandingkan dengan tahun terbaru pada data)' : ''), M, y);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(100, 116, 139);
+        doc.text('Filter Bulan, Customer, Plant & Kategori mengikuti filter aktif; hanya tahun yang dibedakan. Merah = naik (kurang baik), hijau = turun (lebih baik).', M, y + 9);
+        doc.addImage(snap(cfgCompareClaim(dP, dN, prevY, curY), 620, 189, `Kasus Claim per Bulan: ${prevY} vs ${curY}`), 'PNG', M, y + 14, HALF, 118);
+        doc.autoTable({ startY: y + 14, margin: { left: M + HALF + 12, right: M, top: 106 }, tableWidth: HALF, theme: 'grid',
+          styles: { fontSize: 6.5, cellPadding: 2, lineColor: [226, 232, 240], lineWidth: 0.4 }, headStyles: { fillColor: [18, 58, 48], textColor: 255 },
+          columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right', fontStyle: 'bold' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+          head: [['Indikator', String(prevY), String(curY), 'Selisih', '% Perubahan']], body,
+          didParseCell: d => { if (d.section === 'body' && d.column.index >= 3) { const r = rows[d.row.index], dv = b[r[1]] - a[r[1]];
+            d.cell.styles.textColor = !r[2] || dv === 0 ? [71, 85, 105] : dv > 0 ? [190, 18, 60] : [4, 120, 87]; d.cell.styles.fontStyle = 'bold'; } } });
+        y += 14 + 118 + 12;
+      }
       const MAXR = 100;
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
       doc.text(`Log Register Claim Customer (sesuai filter aktif${dc.length > MAXR ? `, ${MAXR} dari ${dc.length} data - selengkapnya lihat portal/Excel` : ''}):`, M, y);
