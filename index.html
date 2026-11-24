@@ -305,8 +305,11 @@ function buildWeeks(m) {
 function shell(m) {
   const c = MOD[m], col = c.color;
   let fl = sel(m, 'year', 'Semua Tahun', []);
-  if (m === 'claim') fl += sel(m, 'month', 'Semua Bulan', MONTHS.map((x, i) => [i + 1, x])) + sel(m, 'customer', 'Semua Customer', []) + sel(m, 'plant', 'Semua Plant', PLANTS.map(x => [x, x])) + sel(m, 'kategori', 'Semua Kategori', [['Claim','Claim'],['Informasi','Informasi']]);
-  else {
+  if (m === 'claim') {
+    fl += sel(m, 'month', 'Semua Bulan', MONTHS.map((x, i) => [i + 1, x])) + sel(m, 'customer', 'Semua Customer', []) + sel(m, 'plant', 'Semua Plant', PLANTS.map(x => [x, x])) + sel(m, 'kategori', 'Semua Kategori', [['Claim','Claim'],['Informasi','Informasi']]);
+    // Tahun pembanding khusus Laporan Eksekutif PDF (bukan filter tabel/dashboard, jadi tanpa class "flt")
+    fl += `<select id="cmpYear" title="Tahun pembanding untuk Laporan Eksekutif PDF (tampil di bagian ATAS halaman 1). Tahun pada filter 'Tahun' menjadi bagian BAWAH." class="text-xs bg-amber-50 border border-amber-200 text-amber-800 font-semibold rounded-lg px-3 py-1.5 max-w-[240px]"><option value="ALL">Pembanding PDF: otomatis (tahun lalu)</option></select>`;
+  } else {
     fl += sel(m, 'month', 'Semua Bulan', MONTHS.map((x, i) => [i + 1, x])) + weekWidget(m);
     if (m === 'insp') fl += sel(m, 'customer', 'Semua Customer', []);
     if (m === 'ng') fl += divWidget(m);
@@ -410,6 +413,12 @@ function popYears() {
     s.innerHTML = '<option value="ALL">Semua Tahun</option>' + arr.map(y => `<option value="${y}">${y}</option>`).join('');
     s.value = arr.map(String).includes(cur) ? cur : 'ALL';
   });
+  const cm = $('cmpYear');
+  if (cm) {
+    const cv = cm.value;
+    cm.innerHTML = '<option value="ALL">Pembanding PDF: otomatis (tahun lalu)</option>' + arr.map(y => `<option value="${y}">Pembanding PDF: ${y}</option>`).join('');
+    cm.value = arr.map(String).includes(cv) ? cv : 'ALL';
+  }
   ['ng', 'insp'].forEach(buildWeeks);
 }
 function popCustomers(list) {
@@ -688,6 +697,16 @@ function exportData(m, f) {
 }
 
 /* ================= LAPORAN EKSEKUTIF PDF (LANDSCAPE) ================= */
+/* Tahun laporan = filter "Tahun" (kosong/Semua = tahun terbaru pada data).
+   Tahun pembanding = dropdown "Pembanding PDF" (otomatis = tahun laporan - 1). */
+function claimYears() {
+  const sel = fv('claim', 'year'), cmp = $('cmpYear') ? $('cmpYear').value : 'ALL';
+  const yrs = D.claim.map(r => pd(r.tanggalClaim)).filter(Boolean).map(d => d.getFullYear());
+  const curY = sel === 'ALL' ? (yrs.length ? Math.max(...yrs) : new Date().getFullYear()) : Number(sel);
+  let prevY = cmp === 'ALL' ? curY - 1 : Number(cmp);
+  if (prevY === curY) prevY = curY - 1;
+  return { curY, prevY, auto: sel === 'ALL' };
+}
 function execReport() {
   toast('Menyiapkan Laporan Eksekutif PDF...', 'info');
   setTimeout(() => {
@@ -758,22 +777,30 @@ function execReport() {
       };
       const D10 = v => String(v || '-').slice(0, 10);
 
-      // ---- HALAMAN 1: CLAIM ----
-      const dc = filtered('claim');
+      // ---- HALAMAN 1: CLAIM - bagian ATAS = tahun pembanding, bagian BAWAH = tahun laporan ----
+      const { curY, prevY, auto } = claimYears();
+      const dP = filtered('claim', false, prevY), dN = filtered('claim', false, curY);
       header('1. LAPORAN AUDIT REGISTER CLAIM CUSTOMER', 'BAGIAN 1 - CLAIM');
-      let y = banner(104, [['Tahun', lbl(fv('claim','year'), 'Semua Tahun')], ['Bulan', lbl(fv('claim','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Customer', lbl(fv('claim','customer'), 'Semua Customer')], ['Plant', lbl(fv('claim','plant'), 'Semua Plant')], ['Kategori', lbl(fv('claim','kategori'), 'Semua Kategori')], ...($('q-claim').value ? [['Pencarian', $('q-claim').value]] : [])]);
-      const cl = dc.filter(c => c.statusClaim === 'Closed').length;
-      const nCl = dc.filter(c => (c.kategoriClaim || 'Claim') === 'Claim').length;
-      y = kRow(y, [['TOTAL KASUS', fmt(dc.length) + ' Kasus', [79,70,229]], ['KATEGORI CLAIM', fmt(nCl) + ' Kasus', [225,29,72]], ['KATEGORI INFORMASI', fmt(dc.length - nCl) + ' Kasus', [2,132,199]], ['MONITORING', fmt(dc.length - cl) + ' Kasus', [217,119,6]], ['CLOSED', fmt(cl) + ' Kasus', [5,150,105]], ['TOTAL QTY DEFECT', fmt(dc.reduce((a, c) => a + num(c.qtyNG), 0)) + ' Pcs', [225,29,72]]]);
-      doc.addImage(snap(cfgCust(dc), 620, 230, 'Top 5 Customer Terbanyak (Kasus)'), 'PNG', M, y, HALF, 143);
-      doc.addImage(snap(cfgTrendClaim(dc), 620, 230, 'Tren Kasus & Qty Defect Bulanan'), 'PNG', M + HALF + 12, y, HALF, 143);
-      y += 152;
-      // ---- Perbandingan tahun sebelumnya vs tahun terpilih (hanya halaman 1) ----
+      let y = banner(104, [['Tahun', `${prevY} (pembanding) vs ${curY}`], ['Bulan', lbl(fv('claim','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Customer', lbl(fv('claim','customer'), 'Semua Customer')], ['Plant', lbl(fv('claim','plant'), 'Semua Plant')], ['Kategori', lbl(fv('claim','kategori'), 'Semua Kategori')], ...($('q-claim').value ? [['Pencarian', $('q-claim').value]] : [])]);
+      const yearBlock = (yy, yr, data, tag, col) => {
+        doc.setFillColor(...col); doc.roundedRect(M, yy, CW, 13, 3, 3, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255);
+        doc.text(`TAHUN ${yr}  -  ${tag}`, M + 8, yy + 9.5);
+        yy += 18;
+        const cl = data.filter(c => c.statusClaim === 'Closed').length, nCl = data.filter(c => (c.kategoriClaim || 'Claim') === 'Claim').length;
+        yy = kRow(yy, [['TOTAL KASUS', fmt(data.length) + ' Kasus', [79,70,229]], ['KATEGORI CLAIM', fmt(nCl) + ' Kasus', [225,29,72]], ['KATEGORI INFORMASI', fmt(data.length - nCl) + ' Kasus', [2,132,199]], ['MONITORING', fmt(data.length - cl) + ' Kasus', [217,119,6]], ['CLOSED', fmt(cl) + ' Kasus', [5,150,105]], ['TOTAL QTY DEFECT', fmt(data.reduce((a, c) => a + num(c.qtyNG), 0)) + ' Pcs', [225,29,72]]]);
+        doc.addImage(snap(cfgCust(data), 620, 216, 'Top 5 Customer Terbanyak (Kasus) - ' + yr), 'PNG', M, yy, HALF, 135);
+        doc.addImage(snap(cfgTrendClaim(data), 620, 216, 'Tren Kasus & Qty Defect Bulanan - ' + yr), 'PNG', M + HALF + 12, yy, HALF, 135);
+        return yy + 135 + 8;
+      };
+      y = yearBlock(y, prevY, dP, 'PEMBANDING (TAHUN SEBELUMNYA)', [100, 116, 139]);
+      y = yearBlock(y, curY, dN, 'TAHUN LAPORAN' + (auto ? ' (otomatis: tahun terbaru pada data)' : ''), [18, 58, 48]);
+
+      // ---- HALAMAN 2: PERBANDINGAN + LOG REGISTER CLAIM (tahun pembanding, lalu tahun laporan) ----
+      const T2 = '1.1 PERBANDINGAN & LOG REGISTER CLAIM CUSTOMER', B2 = 'BAGIAN 1 - CLAIM';
+      doc.addPage(); header(T2, B2);
+      y = 112;
       {
-        const sel = fv('claim', 'year');
-        const yrs = D.claim.map(r => pd(r.tanggalClaim)).filter(Boolean).map(d => d.getFullYear());
-        const curY = sel === 'ALL' ? (yrs.length ? Math.max(...yrs) : new Date().getFullYear()) : Number(sel), prevY = curY - 1;
-        const dP = filtered('claim', false, prevY), dN = filtered('claim', false, curY);
         const st = a => { const chk = a.reduce((s, r) => s + num(r.qtyCheck), 0), ng = a.reduce((s, r) => s + num(r.qtyNG), 0), cl = a.filter(r => (r.kategoriClaim || 'Claim') === 'Claim').length;
           return { n: a.length, cl, inf: a.length - cl, chk, ng, pct: chk ? ng / chk * 100 : 0, closed: a.filter(r => r.statusClaim === 'Closed').length }; };
         const a = st(dP), b = st(dN), sg = v => (v > 0 ? '+' : '');
@@ -784,7 +811,7 @@ function execReport() {
           return [l, isP ? a[k].toFixed(2) + '%' : fmt(a[k]), isP ? b[k].toFixed(2) + '%' : fmt(b[k]), isP ? sg(d) + d.toFixed(2) + ' pp' : sg(d) + fmt(d), pc];
         });
         doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
-        doc.text(`Perbandingan Claim Customer: ${prevY} vs ${curY}` + (sel === 'ALL' ? ' (Semua Tahun dipilih - dibandingkan dengan tahun terbaru pada data)' : ''), M, y);
+        doc.text(`Perbandingan Claim Customer: ${prevY} vs ${curY}`, M, y);
         doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(100, 116, 139);
         doc.text('Filter Bulan, Customer, Plant & Kategori mengikuti filter aktif; hanya tahun yang dibedakan. Merah = naik (kurang baik), hijau = turun (lebih baik).', M, y + 9);
         doc.addImage(snap(cfgCompareClaim(dP, dN, prevY, curY), 620, 189, `Kasus Claim per Bulan: ${prevY} vs ${curY}`), 'PNG', M, y + 14, HALF, 118);
@@ -794,18 +821,24 @@ function execReport() {
           head: [['Indikator', String(prevY), String(curY), 'Selisih', '% Perubahan']], body,
           didParseCell: d => { if (d.section === 'body' && d.column.index >= 3) { const r = rows[d.row.index], dv = b[r[1]] - a[r[1]];
             d.cell.styles.textColor = !r[2] || dv === 0 ? [71, 85, 105] : dv > 0 ? [190, 18, 60] : [4, 120, 87]; d.cell.styles.fontStyle = 'bold'; } } });
-        y += 14 + 118 + 12;
+        y += 14 + 118 + 14;
       }
       const MAXR = 100;
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
-      doc.text(`Log Register Claim Customer (sesuai filter aktif${dc.length > MAXR ? `, ${MAXR} dari ${dc.length} data - selengkapnya lihat portal/Excel` : ''}):`, M, y);
-      const p1 = doc.internal.getCurrentPageInfo().pageNumber;
-      doc.autoTable({ startY: y + 6, margin: { left: M, right: M, top: 106 }, theme: 'striped', styles: { fontSize: 6.5, cellPadding: 3 }, headStyles: { fillColor: [18, 58, 48] },
-        head: [['ID Reg','Tanggal','Plant','Kategori','Customer','No Claim','Nama Part','Jenis NG','Check','NG','%','Status','Doc','PICA']],
-        body: dc.length ? dc.slice(0, MAXR).map(c => [c.idRegister, c.tanggalClaim, c.acjPlant, c.kategoriClaim || 'Claim', c.namaCustomer, c.noClaim || '-', c.namaPart, c.keteranganJenisNG, fmt(c.qtyCheck), fmt(c.qtyNG), num(c.prosentase) + '%', c.statusClaim, c.officialDoc ? 'Ada' : '-', c.pica ? 'Ada' : '-']) : [['-','Tidak ada data claim pada filter ini','-','-','-','-','-','-','-','-','-','-','-','-']],
-        didDrawPage: d => { if (d.pageNumber > p1) header('1. LAPORAN AUDIT REGISTER CLAIM CUSTOMER (lanjutan)', 'BAGIAN 1 - CLAIM'); } });
+      const logTable = (yr, data, tag, col, yy) => {
+        if (yy > H - 100) { doc.addPage(); header(T2 + ' (lanjutan)', B2); yy = 112; }
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42);
+        doc.text(`Log Register Claim Customer - Tahun ${yr} (${tag}) | ${data.length} data${data.length > MAXR ? `, ${MAXR} ditampilkan - selengkapnya lihat portal/Excel` : ''}`, M, yy);
+        const p0 = doc.internal.getCurrentPageInfo().pageNumber;
+        doc.autoTable({ startY: yy + 6, margin: { left: M, right: M, top: 106, bottom: 30 }, theme: 'striped', styles: { fontSize: 6.5, cellPadding: 3 }, headStyles: { fillColor: col },
+          head: [['ID Reg','Tanggal','Plant','Kategori','Customer','No Claim','Nama Part','Jenis NG','Check','NG','%','Status','Doc','PICA']],
+          body: data.length ? data.slice(0, MAXR).map(c => [c.idRegister, c.tanggalClaim, c.acjPlant, c.kategoriClaim || 'Claim', c.namaCustomer, c.noClaim || '-', c.namaPart, c.keteranganJenisNG, fmt(c.qtyCheck), fmt(c.qtyNG), num(c.prosentase) + '%', c.statusClaim, c.officialDoc ? 'Ada' : '-', c.pica ? 'Ada' : '-']) : [['-','Tidak ada data claim pada filter ini','-','-','-','-','-','-','-','-','-','-','-','-']],
+          didDrawPage: d => { if (d.pageNumber > p0) header(T2 + ' (lanjutan)', B2); } });
+        return doc.lastAutoTable.finalY;
+      };
+      let fyC = logTable(prevY, dP, 'Pembanding', [100, 116, 139], y);
+      logTable(curY, dN, 'Tahun Laporan', [18, 58, 48], fyC + 20);
 
-      // ---- HALAMAN 2: NG ----
+      // ---- HALAMAN: NG ----
       const dn = filtered('ng');
       doc.addPage(); header('2. EVALUASI DATABASE NG INTERNAL PRODUKSI', 'BAGIAN 2 - NG');
       y = banner(104, [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')], ...($('q-ng').value ? [['Pencarian', $('q-ng').value]] : [])]);
@@ -820,14 +853,14 @@ function execReport() {
       const ps = Math.min(130, TH * 0.5); doc.addImage(snap(pie.cfg, 400, 400), 'PNG', rx + (rw - ps) / 2, y + 14, ps, ps);
       legend(rx, y + ps + 20, rw, TH - ps - 20, 'Rincian Part NG Kritis', pie.items);
 
-      // ---- HALAMAN 2b: LOG PART NG TERTINGGI (NG INTERNAL) ----
+      // ---- LOG PART NG TERTINGGI (NG INTERNAL) ----
       partLog(dn, pie.items, 'Tanpa Nama', ['No', 'Tanggal', 'ID NG', 'Qty NG', 'Jenis Defect', 'Faktor Penyebab', 'Divisi', 'No Mesin', 'Operator'],
         [[24, 'center'], [58], [62], [40, 'right'], [148], [190], [58], [68], [137]],
         (r, n) => [n, D10(r.tanggal), r.idNG || '-', fmt(r.qtyNG), r.jenisNG || '-', r.faktorPenyebab || '-', r.divisi || '-', r.noMesin || '-', r.namaOperator || '-'],
         '2.1 LOG PART NG TERTINGGI - DATABASE NG INTERNAL PRODUKSI', 'BAGIAN 2 - LOG NG',
         [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')], ...($('q-ng').value ? [['Pencarian', $('q-ng').value]] : [])]);
 
-      // ---- HALAMAN 2c: PARETO MULTI-DIMENSI (gabungan, lalu per divisi) ----
+      // ---- PARETO MULTI-DIMENSI (gabungan, lalu per divisi) ----
       const ngBase = [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)]];
       const paretoPage = (title, data, list, suffix) => {
         doc.addPage(); header(title, 'BAGIAN 2 - PARETO NG');
@@ -844,7 +877,7 @@ function execReport() {
         paretoPage(`2.2.${k + 1} EVALUASI PARETO MULTI-DIMENSI DEFECT NG - DIVISI ${dvn.toUpperCase()}`, dd, [...ngBase, ['Divisi', dvn], ['Total NG', fmt(dd.reduce((a, r) => a + num(r.qtyNG), 0)) + ' Pcs']], ' - ' + dvn);
       });
 
-      // ---- HALAMAN 4: INSPECTION + PENGESAHAN ----
+      // ---- INSPECTION + PENGESAHAN ----
       const di = filtered('insp'), T = k => di.reduce((a, r) => a + num(r[k]), 0), tc = T('totalCheck'), pc = v => `${tc ? (v / tc * 100).toFixed(2) : '0.00'}%`;
       doc.addPage(); header('3. MONITORING DATA INSPECTION & PENGESAHAN', 'BAGIAN 3 - INSPECTION');
       y = banner(104, [['Tahun', lbl(fv('insp','year'), 'Semua Tahun')], ['Bulan', lbl(fv('insp','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('insp','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Customer', lbl(fv('insp','customer'), 'Semua Customer')], ...($('q-insp').value ? [['Pencarian', $('q-insp').value]] : [])]);
@@ -855,7 +888,7 @@ function execReport() {
       const rx2 = M + HALF + 12; doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42); doc.text('Top 5 Part NG Tertinggi Inspeksi', rx2, y + 8);
       doc.addImage(snap(ipie.cfg, 400, 400), 'PNG', rx2, y + 14, IH - 14, IH - 14);
       legend(rx2 + IH - 6, y + 14, HALF - IH + 6, IH - 14, 'Rincian Part', ipie.items);
-      // ---- HALAMAN 4b: LOG PART NG TERTINGGI (INSPECTION) ----
+      // ---- LOG PART NG TERTINGGI (INSPECTION) ----
       const inspBanner = [['Tahun', lbl(fv('insp','year'), 'Semua Tahun')], ['Bulan', lbl(fv('insp','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('insp','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Customer', lbl(fv('insp','customer'), 'Semua Customer')], ...($('q-insp').value ? [['Pencarian', $('q-insp').value]] : [])];
       const fy = partLog(di, ipie.items, 'Tanpa Part', ['No', 'Tanggal', 'Customer', 'Proses', 'Qty NG', 'Qty Repair', 'Total Check', 'Operator', 'Keterangan'],
         [[24, 'center'], [58], [140], [110], [40, 'right'], [44, 'right'], [48, 'right'], [110], [211]],
@@ -1057,7 +1090,7 @@ document.addEventListener('click', e => {
   else if (act === 'pg') { pg[m] += Number(d); table(m); }
   else if (act === 'cdrill') { drill[m] = null; badge(m); pg[m] = 1; table(m); if (m === 'claim') rClaim(); }
   else if (act === 'reset') {
-    document.querySelectorAll(`#v-${m} select.flt`).forEach(s => s.value = 'ALL'); if (wsel[m]) { wsel[m].clear(); buildWeeks(m); } if (dsel[m]) { dsel[m].clear(); buildDiv(m); } $('q-' + m).value = ''; drill[m] = null; badge(m); pg[m] = 1; render(m); toast('Filter di-reset', 'info');
+    document.querySelectorAll(`#v-${m} select.flt`).forEach(s => s.value = 'ALL'); if (wsel[m]) { wsel[m].clear(); buildWeeks(m); } if (dsel[m]) { dsel[m].clear(); buildDiv(m); } if (m === 'claim' && $('cmpYear')) $('cmpYear').value = 'ALL'; $('q-' + m).value = ''; drill[m] = null; badge(m); pg[m] = 1; render(m); toast('Filter di-reset', 'info');
   }
 });
 document.addEventListener('change', e => {
