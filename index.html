@@ -319,7 +319,7 @@ function shell(m) {
     const extra = k === 'multi' ? `<select id="dim" data-m="ng" class="flt text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg px-2 py-1"><option value="namaPart">By Part NG</option><option value="jenisNG">By Jenis Problem</option><option value="namaOperator">By Operator</option><option value="noMesin">By No Mesin</option></select>` : '';
     return `<div class="lg:col-span-${sp} bg-white p-4 card"><div class="flex justify-between items-start gap-2 mb-2"><div><h4 class="font-bold text-sm">${t}</h4><p class="text-xs text-slate-500">${s}</p></div>${extra}</div><div class="relative h-64"><canvas id="c-${m}-${k}"></canvas></div></div>`;
   }).join('');
-  const th = '<th class="py-3 px-3">Aksi</th>' + c.cols.filter(x => x[3] !== 0).map(x => `<th class="py-3 px-3 ${x[2]==='n'||x[2]==='p'?'text-right':''}">${x[0]}</th>`).join('');
+  const th = '<th class="py-3 px-3">Aksi</th>' + c.cols.filter(x => x[3] !== 0).map(x => `<th data-act="sort" data-m="${m}" data-k="${x[1]}" title="Klik untuk urutkan A-Z / Z-A" class="py-3 px-3 cursor-pointer select-none hover:text-slate-800 whitespace-nowrap ${x[2]==='n'||x[2]==='p'?'text-right':''}">${x[0]}<span class="sort-i ml-1 text-[10px] text-slate-300">↕</span></th>`).join('');
   return `
   <div class="hero relative overflow-hidden rounded-[2rem] p-6 sm:p-8 text-white flex flex-wrap items-center justify-between gap-4">
     <div><p class="text-xs font-bold uppercase tracking-wider text-emerald-300">ACJ Quality Workspace</p><h2 class="text-2xl sm:text-3xl font-extrabold mt-1">${c.title}</h2><p class="text-sm text-slate-300 mt-1 max-w-md">Dashboard, analisis Pareto & log register dalam satu tempat.</p></div>
@@ -377,10 +377,26 @@ const fv = (m, k) => {
   if (k === 'week') { const s = wsel[m]; return s && s.size && fv(m, 'month') !== 'ALL' ? [...s].sort((a, b) => a - b).join(', ') : 'ALL'; }
   const e = $(`f-${m}-${k}`); return e ? e.value : 'ALL';
 };
+/* ===== Urutan log register: klik judul kolom -> A-Z (naik) -> Z-A (turun) -> urutan asli ===== */
+const srt = { claim: null, ng: null, insp: null };
+function sortRows(m, rows) {
+  const s = srt[m]; if (!s) return rows;
+  const col = MOD[m].cols.find(x => x[1] === s.k), t = col ? col[2] : '', dir = s.dir === 'asc' ? 1 : -1;
+  const empty = v => v == null || v === '';
+  return rows.slice().sort((a, b) => {
+    const va = a[s.k], vb = b[s.k];
+    if (empty(va) && empty(vb)) return 0;
+    if (empty(va)) return 1;   // data kosong selalu di bawah
+    if (empty(vb)) return -1;
+    if (t === 'n' || t === 'p') return (num(va) - num(vb)) * dir;
+    if (t === 'b') return ((va ? 1 : 0) - (vb ? 1 : 0)) * dir;
+    return String(va).localeCompare(String(vb), 'id', { numeric: true, sensitivity: 'base' }) * dir;
+  });
+}
 function filtered(m, tbl, yo) {
   const c = MOD[m], y = yo !== undefined ? String(yo) : fv(m,'year'), mo = fv(m,'month'), w = fv(m,'week'), cu = fv(m,'customer'), pl = fv(m,'plant'), kt = fv(m,'kategori');
   const q = ($('q-' + m).value || '').toLowerCase().trim(), dr = tbl && drill[m];
-  return D[m].filter(r => {
+  const out = D[m].filter(r => {
     const d = pd(r[c.dk]);
     if ((y !== 'ALL' || mo !== 'ALL' || w !== 'ALL') && !d) return false;
     if (y !== 'ALL' && d.getFullYear() != y) return false;
@@ -394,6 +410,7 @@ function filtered(m, tbl, yo) {
     if (dr && r[dr.field] !== dr.value) return false;
     return true;
   });
+  return tbl ? sortRows(m, out) : out;
 }
 function setDrill(m, field, value) {
   drill[m] = { field, value }; pg[m] = 1; badge(m); table(m);
@@ -595,6 +612,12 @@ function table(m) {
   $('empty-' + m).classList.toggle('hidden', total > 0);
   $('info-' + m).textContent = `Menampilkan ${total ? st + 1 : 0}-${Math.min(st + PAGE, total)} dari ${total} data`;
   $('pn-' + m).textContent = `${pg[m]} / ${pages}`;
+  document.querySelectorAll(`#v-${m} th[data-k]`).forEach(th => {
+    const on = srt[m] && srt[m].k === th.dataset.k, i = th.querySelector('.sort-i');
+    if (!i) return;
+    i.textContent = on ? (srt[m].dir === 'asc' ? '▲ A-Z' : '▼ Z-A') : '↕';
+    i.className = 'sort-i ml-1 text-[10px] ' + (on ? 'text-emerald-600 font-bold' : 'text-slate-300');
+  });
   document.querySelectorAll(`[data-act=pg][data-m=${m}]`).forEach(b => b.disabled = (b.dataset.d < 0 ? pg[m] <= 1 : pg[m] >= pages));
   icons();
 }
@@ -1087,10 +1110,15 @@ document.addEventListener('click', e => {
   else if (act === 'logout') doLogout(false);
   else if (act === 'close') $('modal').classList.add('hidden');
   else if (act === 'doc') openDoc(u);
+  else if (act === 'sort') {
+    const k = b.dataset.k, cur = srt[m];
+    srt[m] = !cur || cur.k !== k ? { k, dir: 'asc' } : cur.dir === 'asc' ? { k, dir: 'desc' } : null;
+    pg[m] = 1; table(m);
+  }
   else if (act === 'pg') { pg[m] += Number(d); table(m); }
   else if (act === 'cdrill') { drill[m] = null; badge(m); pg[m] = 1; table(m); if (m === 'claim') rClaim(); }
   else if (act === 'reset') {
-    document.querySelectorAll(`#v-${m} select.flt`).forEach(s => s.value = 'ALL'); if (wsel[m]) { wsel[m].clear(); buildWeeks(m); } if (dsel[m]) { dsel[m].clear(); buildDiv(m); } if (m === 'claim' && $('cmpYear')) $('cmpYear').value = 'ALL'; $('q-' + m).value = ''; drill[m] = null; badge(m); pg[m] = 1; render(m); toast('Filter di-reset', 'info');
+    document.querySelectorAll(`#v-${m} select.flt`).forEach(s => s.value = 'ALL'); if (wsel[m]) { wsel[m].clear(); buildWeeks(m); } if (dsel[m]) { dsel[m].clear(); buildDiv(m); } if (m === 'claim' && $('cmpYear')) $('cmpYear').value = 'ALL'; $('q-' + m).value = ''; srt[m] = null; drill[m] = null; badge(m); pg[m] = 1; render(m); toast('Filter di-reset', 'info');
   }
 });
 document.addEventListener('change', e => {
