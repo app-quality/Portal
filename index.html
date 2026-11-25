@@ -165,7 +165,7 @@ const MOD = {
     cols: [['ID Register','idRegister'],['Tgl Claim','tanggalClaim'],['Plant','acjPlant'],['Kategori','kategoriClaim'],['Customer','namaCustomer'],['No Claim','noClaim'],['Nama Part','namaPart'],['Part No','partNomor'],['Jenis NG','keteranganJenisNG'],['Kategori NG','kategoriNG'],['Frekuensi Claim','frekuensiClaim'],['Qty Check','qtyCheck','n'],['Qty NG','qtyNG','n'],['% Defect','prosentase','p'],['Penyebab Problem','penyebabProblem'],['Lokasi Penemuan','lokasiPenemuan'],['Finish Monitoring','finishMonitoring'],['Status','statusClaim'],['Official Doc','officialDoc','b'],['PICA','pica','b']] },
   ng: { title: 'Database NG Internal', sheet: 'Database_NG', idk: 'idNG', dk: 'tanggal', color: 'blue', icon: 'cpu',
     search: ['namaPart','jenisNG','faktorPenyebab','divisi','noMesin','namaOperator','idNG'],
-    cols: [['ID NG','idNG'],['Tanggal','tanggal'],['Nama Part','namaPart'],['Qty NG','qtyNG','n'],['Jenis Defect','jenisNG'],['Faktor Penyebab','faktorPenyebab'],['Divisi','divisi'],['No Mesin','noMesin'],['Operator','namaOperator']] },
+    cols: [['ID NG','idNG'],['Tanggal','tanggal'],['Nama Part','namaPart'],['Qty NG','qtyNG','n'],['Qty Produksi','qtyProduksi','n'],['Ratio NG','ratioNG','p'],['Jenis Defect','jenisNG'],['Faktor Penyebab','faktorPenyebab'],['Divisi','divisi'],['No Mesin','noMesin'],['Operator','namaOperator']] },
   insp: { title: 'Data Inspection', sheet: 'Data_Inspection', idk: 'uid', dk: 'tanggal', color: 'emerald', icon: 'check-square',
     search: ['namaPart','customer','proses','operator','keterangan','no'],
     cols: [['No','no','',0],['Tanggal','tanggal'],['Nama Part','namaPart'],['Customer','customer'],['Proses','proses'],['Qty OK','qtyOK','n'],['Qty NG','qtyNG','n'],['Qty Repair','qtyRepair','n'],['Total Check','totalCheck','n'],['Operator','operator'],['Keterangan','keterangan']] }
@@ -191,6 +191,7 @@ const F = {
   ng: [
     {k:'idNG',l:'ID NG (otomatis)',t:'text',ro:1},{k:'tanggal',l:'Tanggal',t:'date',req:1},
     {k:'namaPart',l:'Nama Part',t:'text',req:1},{k:'qtyNG',l:'Qty NG (Pcs)',t:'number',min:0,req:1,def:1},
+    {k:'qtyProduksi',l:'Qty Produksi (Pcs)',t:'number',min:0,req:1,def:0},{k:'ratioNG',l:'Ratio NG (%) (otomatis)',t:'text',ro:1},
     {k:'jenisNG',l:'Jenis NG',t:'text',req:1},{k:'faktorPenyebab',l:'Faktor Penyebab',t:'text',req:1},
     {k:'divisi',l:'Divisi',t:'sel',o:DIVISI},{k:'noMesin',l:'No. Mesin',t:'text'},{k:'namaOperator',l:'Nama Operator',t:'text'}],
   insp: [
@@ -333,7 +334,7 @@ function shell(m) {
   <div class="bg-white p-4 card flex flex-wrap items-center gap-3">
     <span class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1.5"><i data-lucide="filter" class="w-4 h-4 text-${col}-600"></i>Filter:</span>${fl}
     <button data-act="reset" data-m="${m}" class="text-xs text-slate-500 hover:text-slate-800 underline ml-auto">Reset Filter</button></div>
-  <div id="kpi-${m}" class="grid grid-cols-2 ${m === 'claim' ? 'lg:grid-cols-6' : 'lg:grid-cols-4'} gap-4"></div>
+  <div id="kpi-${m}" class="grid grid-cols-2 ${m === 'claim' || m === 'ng' ? 'lg:grid-cols-6' : 'lg:grid-cols-4'} gap-4"></div>
   <div class="grid grid-cols-1 lg:grid-cols-6 gap-4">${cards}</div>
   <div class="bg-white card overflow-hidden">
     <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -568,7 +569,9 @@ function rNG() {
   const d = filtered('ng'), tq = d.reduce((a, n) => a + num(n.qtyNG), 0);
   const dv = sum(d, r => r.divisi || 'Lainnya', r => num(r.qtyNG)), df = sum(d, r => r.jenisNG || 'Lainnya', r => num(r.qtyNG));
   const td = Object.keys(dv).sort((a, b) => dv[b] - dv[a])[0], tf = Object.keys(df).sort((a, b) => df[b] - df[a])[0];
-  $('kpi-ng').innerHTML = kpi('Total Defect NG', fmt(tq), 'Pieces defect', 'rose') + kpi('Total Kasus/Lot', fmt(d.length), 'Frekuensi kejadian', 'blue') +
+  const tp = d.reduce((a, n) => a + num(n.qtyProduksi), 0);
+  $('kpi-ng').innerHTML = kpi('Total Defect NG', fmt(tq), 'Pieces defect', 'rose') + kpi('Total Qty Produksi', fmt(tp), 'Pieces diproduksi', 'slate') +
+    kpi('Ratio NG', tp > 0 ? (tq / tp * 100).toFixed(2) + '%' : '-', 'NG ÷ produksi', 'rose') + kpi('Total Kasus/Lot', fmt(d.length), 'Frekuensi kejadian', 'blue') +
     kpi('Top Divisi Defect', esc(td || '-'), fmt(dv[td]) + ' pcs', 'amber') + kpi('Top Jenis Problem', esc(tf || '-'), fmt(df[tf]) + ' pcs', 'indigo');
   const parts = sum(d, r => r.namaPart || 'Tanpa Part', r => num(r.qtyNG));
   mk('ng-pareto', cfgPareto(parts, 10, '#0f766e', '#ef4444', 'Qty NG (Pcs)', v => setDrill('ng', 'namaPart', v)).cfg);
@@ -592,6 +595,7 @@ function rInsp() {
 }
 function cell(col, r) {
   const [, k, t] = col, v = r[k];
+  if (k === 'ratioNG' && !num(r.qtyProduksi)) return `<td class="py-2 px-3 text-right text-slate-400">-</td>`;
   if (t === 'n') return `<td class="py-2 px-3 text-right font-semibold">${fmt(v)}</td>`;
   if (t === 'p') return `<td class="py-2 px-3 text-right">${num(v)}%</td>`;
   if (t === 'b') return `<td class="py-2 px-3">${v ? `<button data-act="doc" data-u="${esc(v)}" class="text-indigo-600 hover:underline">Buka</button>` : '-'}</td>`;
@@ -653,6 +657,7 @@ function calcForm() {
     const t = $('fm-tanggalClaim').value; $('fm-finishMonitoring').value = t ? add90(t) : '';
   }
   if (m === 'insp') $('fm-totalCheck').value = g('qtyOK') + g('qtyNG') + g('qtyRepair');
+  if (m === 'ng') $('fm-ratioNG').value = (g('qtyProduksi') > 0 ? (g('qtyNG') / g('qtyProduksi') * 100).toFixed(2) : '0.00') + '%';
 }
 const readB64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(f); });
 async function submitForm(e) {
@@ -770,7 +775,7 @@ function execReport() {
         items.forEach(it => {
           doc.setFillColor(...rgb(it.color)); doc.roundedRect(x + 10, ry - 7, 8, 8, 2, 2, 'F');
           doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(30, 41, 59); doc.text(it.label.length > 24 ? it.label.slice(0, 22) + '...' : it.label, x + 23, ry);
-          doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(71, 85, 105); doc.text(`${fmt(it.qty)} pcs (${it.pct}%)`, x + w - 10, ry, { align: 'right' }); ry += sp;
+          doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(71, 85, 105); doc.text(it.prod != null ? `${fmt(it.qty)} NG / ${fmt(it.prod)} prod (${it.rt})` : `${fmt(it.qty)} pcs (${it.pct}%)`, x + w - 10, ry, { align: 'right' }); ry += sp;
         });
       };
       const lbl = (v, all, f) => v === 'ALL' ? all : (f ? f(v) : v);
@@ -786,7 +791,7 @@ function execReport() {
         tops.forEach((it, i) => {
           const all = data.filter(r => (r.namaPart || fallback) === it.label && num(r.qtyNG) > 0)
             .sort((a, b) => num(b.qtyNG) - num(a.qtyNG) || String(b.tanggal || '').localeCompare(String(a.tanggal || '')));
-          body.push([{ content: `#${i + 1}  ${it.label}   |   Total ${fmt(it.qty)} pcs NG (${it.pct}%)   |   Menampilkan ${Math.min(all.length, LOGMAX)} dari ${all.length} data`, colSpan: head.length, styles: { fillColor: rgb(it.color), textColor: 255, fontStyle: 'bold', fontSize: 7.5, halign: 'left' } }]);
+          body.push([{ content: `#${i + 1}  ${it.label}   |   ` + (it.prod != null ? `Total ${fmt(it.qty)} pcs NG dari ${fmt(it.prod)} pcs produksi (Ratio NG ${it.rt})` : `Total ${fmt(it.qty)} pcs NG (${it.pct}%)`) + `   |   Menampilkan ${Math.min(all.length, LOGMAX)} dari ${all.length} data`, colSpan: head.length, styles: { fillColor: rgb(it.color), textColor: 255, fontStyle: 'bold', fontSize: 7.5, halign: 'left' } }]);
           all.slice(0, LOGMAX).forEach((r, j) => body.push(rowFn(r, j + 1)));
         });
         if (!tops.length) body.push([{ content: 'Tidak ada data NG pada filter ini', colSpan: head.length, styles: { halign: 'center' } }]);
@@ -867,19 +872,26 @@ function execReport() {
       y = banner(104, [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')], ...($('q-ng').value ? [['Pencarian', $('q-ng').value]] : [])]);
       const dv = sum(dn, r => r.divisi || 'Lainnya', r => num(r.qtyNG)), df = sum(dn, r => r.jenisNG || 'Lainnya', r => num(r.qtyNG));
       const td = Object.keys(dv).sort((a, b) => dv[b] - dv[a])[0], tf = Object.keys(df).sort((a, b) => df[b] - df[a])[0];
-      y = kRow(y, [['TOTAL DEFECT NG', fmt(dn.reduce((a, n) => a + num(n.qtyNG), 0)) + ' Pcs', [225,29,72]], ['TOP DIVISI DEFECT', td ? `${td} (${fmt(dv[td])} pcs)` : '-', [217,119,6]], ['TOP JENIS PROBLEM', tf ? `${tf} (${fmt(df[tf])} pcs)` : '-', [79,70,229]]]);
+      const tqN = dn.reduce((a, n) => a + num(n.qtyNG), 0), tpN = dn.reduce((a, n) => a + num(n.qtyProduksi), 0);
+      y = kRow(y, [['TOTAL DEFECT NG', fmt(tqN) + ' Pcs', [225,29,72]], ['TOTAL QTY PRODUKSI', fmt(tpN) + ' Pcs', [15,23,42]], ['RATIO NG', tpN > 0 ? (tqN / tpN * 100).toFixed(2) + '%' : '-', [225,29,72], 'NG ÷ produksi'], ['TOP DIVISI DEFECT', td ? `${td} (${fmt(dv[td])} pcs)` : '-', [217,119,6]], ['TOP JENIS PROBLEM', tf ? `${tf} (${fmt(df[tf])} pcs)` : '-', [79,70,229]]]);
       const yr = ngYear(), TW = 500, TH = H - y - 60;
       doc.addImage(snap(cfgYearTrend(yr, dsel.ng), 1000, Math.round(1000 * TH / TW), `Tren Jumlah NG Tahun ${yr} (Akumulasi Bulanan per Divisi)`), 'PNG', M, y, TW, TH);
       const rx = M + TW + 12, rw = CW - TW - 12, pie = cfgPie(sum(dn, r => r.namaPart || 'Tanpa Nama', r => num(r.qtyNG)));
       pie.cfg.options.plugins.legend = { display: false };
+      const prodMap = sum(dn, r => r.namaPart || 'Tanpa Nama', r => num(r.qtyProduksi));
+      const prodRest = tpN - pie.items.filter(it => it.label !== 'Part Lainnya').reduce((a, it) => a + (prodMap[it.label] || 0), 0);
+      pie.items.forEach(it => {
+        it.prod = it.label === 'Part Lainnya' ? Math.max(prodRest, 0) : (prodMap[it.label] || 0);
+        it.rt = it.prod > 0 ? (it.qty / it.prod * 100).toFixed(2) + '%' : 'n/a';
+      });
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(15, 23, 42); doc.text('Top 5 Part NG Tertinggi', rx, y + 8);
       const ps = Math.min(130, TH * 0.5); doc.addImage(snap(pie.cfg, 400, 400), 'PNG', rx + (rw - ps) / 2, y + 14, ps, ps);
       legend(rx, y + ps + 20, rw, TH - ps - 20, 'Rincian Part NG Kritis', pie.items);
 
       // ---- LOG PART NG TERTINGGI (NG INTERNAL) ----
-      partLog(dn, pie.items, 'Tanpa Nama', ['No', 'Tanggal', 'ID NG', 'Qty NG', 'Jenis Defect', 'Faktor Penyebab', 'Divisi', 'No Mesin', 'Operator'],
-        [[24, 'center'], [58], [62], [40, 'right'], [148], [190], [58], [68], [137]],
-        (r, n) => [n, D10(r.tanggal), r.idNG || '-', fmt(r.qtyNG), r.jenisNG || '-', r.faktorPenyebab || '-', r.divisi || '-', r.noMesin || '-', r.namaOperator || '-'],
+      partLog(dn, pie.items, 'Tanpa Nama', ['No', 'Tanggal', 'ID NG', 'Qty NG', 'Qty Prod', 'Ratio NG', 'Jenis Defect', 'Faktor Penyebab', 'Divisi', 'No Mesin', 'Operator'],
+        [[24, 'center'], [58], [62], [40, 'right'], [46, 'right'], [44, 'right'], [120], [150], [52], [60], [130]],
+        (r, n) => [n, D10(r.tanggal), r.idNG || '-', fmt(r.qtyNG), num(r.qtyProduksi) > 0 ? fmt(r.qtyProduksi) : '-', num(r.qtyProduksi) > 0 ? num(r.ratioNG).toFixed(2) + '%' : '-', r.jenisNG || '-', r.faktorPenyebab || '-', r.divisi || '-', r.noMesin || '-', r.namaOperator || '-'],
         '2.1 LOG PART NG TERTINGGI - DATABASE NG INTERNAL PRODUKSI', 'BAGIAN 2 - LOG NG',
         [['Tahun', lbl(fv('ng','year'), 'Semua Tahun')], ['Bulan', lbl(fv('ng','month'), 'Semua Bulan', v => MONTHS[v - 1])], ['Minggu', lbl(fv('ng','week'), 'Semua Minggu', v => 'Minggu ' + v)], ['Divisi', lbl(fv('ng','divisi'), 'Semua Divisi')], ...($('q-ng').value ? [['Pencarian', $('q-ng').value]] : [])]);
 
